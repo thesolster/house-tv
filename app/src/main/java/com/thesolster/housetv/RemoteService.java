@@ -51,6 +51,7 @@ public class RemoteService extends Service {
         goForeground();
         running = true;
         new Thread(this::serve, "house-remote").start();
+        new Thread(this::recordLoop, "house-history").start();
     }
 
     @Override
@@ -88,6 +89,18 @@ public class RemoteService extends Service {
                 .setSmallIcon(android.R.drawable.ic_media_play)
                 .build();
         startForeground(1, n);
+    }
+
+    /** Jot down what's playing every 15 seconds, so "Last watched" works after the app closes. */
+    private void recordLoop() {
+        while (running) {
+            Tv.recordNowPlaying(this);
+            try {
+                Thread.sleep(15000);
+            } catch (InterruptedException e) {
+                return;
+            }
+        }
     }
 
     private void serve() {
@@ -155,6 +168,7 @@ public class RemoteService extends Service {
                 JSONObject st = new JSONObject()
                         .put("nowPlaying", new JSONObject(Tv.nowPlaying(this)))
                         .put("recent", new org.json.JSONArray(Tv.recent(this)))
+                        .put("history", new JSONObject(Tv.history(this)))
                         .put("apps", new org.json.JSONArray(Tv.apps(this)))
                         .put("inputs", new org.json.JSONArray(Tv.inputs(this)))
                         .put("status", new JSONObject(Tv.status(this)));

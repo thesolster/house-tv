@@ -218,5 +218,7 @@ public class HomeActivity extends Activity {
         @JavascriptInterface public String nowPlaying() { return Tv.nowPlaying(ctx); }
         @JavascriptInterface public String media(String action) { return Tv.media(ctx, action); }
         @JavascriptInterface public String status() { return Tv.status(ctx); }
+        @JavascriptInterface public String history() { return Tv.history(ctx); }
+        @JavascriptInterface public String clearHistory() { return Tv.clearHistory(ctx); }
     }
 }

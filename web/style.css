@@ -101,3 +101,12 @@ body.idle #rowsClip, body.idle #hero, body.idle #top, body.idle #side { opacity:
 .note:empty { display: none; }
 #note { font-size: 40px; margin-top: 26px; line-height: 1.2; }
 #ambient-note { font-size: 54px; margin-top: 40px; }
+
+/* Last watched tiles */
+.tile.watched { padding: 18px 20px; display: flex; flex-direction: column; justify-content: space-between; }
+.tile.watched .w-app { font-size: 15px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+.tile.watched .w-show { font-family: var(--serif); font-size: 28px; font-weight: 700; line-height: 1.1; margin-top: 6px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.tile.watched .w-ep { font-size: 18px; color: var(--ink-2); margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tile.watched .w-bar { height: 5px; background: rgba(244,237,228,0.12); border-radius: 3px; overflow: hidden; margin-top: 10px; }
+.tile.watched .w-bar div { height: 100%; background: var(--accent); }
+.tile.watched .w-when { font-size: 15px; color: var(--ink-3); margin-top: 8px; }

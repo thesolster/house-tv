@@ -53,6 +53,12 @@
       return JSON.stringify({ access: true, pkg: "com.netflix.ninja", app: "Netflix", title: "The Sopranos", subtitle: "S2:E4 · Commendatori", state: "playing", position: 1500000, duration: 3300000 });
     },
     media: function (a) { toast("Would " + a); return "ok"; },
+    history: function () {
+      return JSON.stringify({ items: [
+        { pkg: "com.hbo.hbonow", app: "HBO Max", title: "Amour Fou", subtitle: "The Sopranos", position: 1796988, duration: 3300000, at: Date.now() - 3600000 },
+        { pkg: "com.netflix.ninja", app: "Netflix", title: "Chapter Four", subtitle: "Stranger Things", position: 900000, duration: 3000000, at: Date.now() - 86400000 * 2 }
+      ] });
+    },
     openUrl: function (u) { toast("Would open " + u); return "ok"; },
     view: function (u) { toast("Would show " + u); return "ok"; },
     status: function () { return JSON.stringify({ usage: true, nowPlaying: true, remote: "http://192.168.1.42:8765/?t=preview" }); }
@@ -106,7 +112,7 @@
   setInterval(checkForUpdate, 2 * 60 * 1000);
 
   // Small stamp so we can tell which copy is on screen.
-  var PAGE_VERSION = "page 6";
+  var PAGE_VERSION = "page 7";
   var appVersion = window.HouseTV ? call("version") : "browser";
   setTimeout(function () {
     setText("build", PAGE_VERSION + " · app " + appVersion + " · " +
@@ -371,6 +377,35 @@
     return t;
   }
 
+  function ago(ms) {
+    var m = Math.round((Date.now() - ms) / 60000);
+    if (m < 2) return "just now";
+    if (m < 60) return m + " min ago";
+    var h = Math.round(m / 60);
+    if (h < 24) return h + (h === 1 ? " hour ago" : " hours ago");
+    var d = Math.round(h / 24);
+    return d === 1 ? "yesterday" : d + " days ago";
+  }
+
+  function watchedTile(w) {
+    var t = document.createElement("div");
+    t.className = "tile watched";
+    var show = w.subtitle || w.title, ep = w.subtitle ? w.title : "";
+    var pct = w.duration > 0 ? Math.min(100, 100 * w.position / w.duration) : 0;
+    t.innerHTML = '<div><div class="w-app"></div><div class="w-show"></div><div class="w-ep"></div></div>' +
+      '<div><div class="w-bar"><div></div></div><div class="w-when"></div></div>';
+    t.querySelector(".w-app").textContent = w.app || "";
+    t.querySelector(".w-show").textContent = show;
+    t.querySelector(".w-ep").textContent = ep;
+    t.querySelector(".w-bar div").style.width = pct + "%";
+    t.querySelector(".w-when").textContent = ago(w.at);
+    t.onActivate = function () {
+      var r = call("launch", w.pkg);
+      if (r !== "ok") toast("Couldn't open " + (w.app || "the app"));
+    };
+    return t;
+  }
+
   function liveTile(item) {
     return textTile(item.title, item.sub, function () {
       var r = item.kind === "youtube" ? call("openUrl", item.url, "") : call("view", item.url);
@@ -395,6 +430,10 @@
   function buildRows() {
     var keep = rows[focus.r] ? rows[focus.r].el.id : null;
 
+    var watched = [];
+    try { watched = (JSON.parse(call("history") || "{}").items || []); } catch (e) {}
+    fill("watched", watched.slice(0, 10).map(watchedTile));
+
     var recent = [];
     try { recent = JSON.parse(call("recent") || "[]"); } catch (e) {}
     fill("recent", recent.slice(0, 8).map(appTile));
@@ -418,7 +457,7 @@
     }));
     fill("inputs", inputTiles);
 
-    rows = ["recent", "live", "apps", "inputs"].map(function (id) {
+    rows = ["watched", "recent", "live", "apps", "inputs"].map(function (id) {
       var el = document.getElementById(id);
       return { el: el, section: document.getElementById("row-" + id), tiles: Array.prototype.slice.call(el.querySelectorAll(".tile")) };
     }).filter(function (r) { return r.tiles.length; });

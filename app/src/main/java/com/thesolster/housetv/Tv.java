@@ -334,6 +334,56 @@ public final class Tv {
         }
     }
 
+    /* ---------------- watch history (kept only on this TV) ---------------- */
+
+    private static final int HISTORY_MAX = 40;
+    private static String lastRecordError = "";
+
+    /** Called every few seconds by RemoteService: if something is playing, remember it. */
+    public static void recordNowPlaying(Context ctx) {
+        try {
+            if (!hasNowPlayingAccess(ctx)) return;
+            JSONObject np = new JSONObject(nowPlaying(ctx));
+            if (np.has("error")) { lastRecordError = np.optString("error"); return; }
+            lastRecordError = "";
+            if (!"playing".equals(np.optString("state"))) return;
+            String title = np.optString("title"), sub = np.optString("subtitle"), pkg = np.optString("pkg");
+            if (title.isEmpty() && sub.isEmpty()) return;
+            String key = pkg + "|" + sub + "|" + title;
+
+            SharedPreferences p = ctx.getSharedPreferences("house", Context.MODE_PRIVATE);
+            JSONArray old = new JSONArray(p.getString("history", "[]"));
+            JSONArray fresh = new JSONArray();
+            JSONObject entry = new JSONObject()
+                    .put("key", key).put("pkg", pkg).put("app", np.optString("app"))
+                    .put("title", title).put("subtitle", sub)
+                    .put("position", np.optLong("position")).put("duration", np.optLong("duration"))
+                    .put("at", System.currentTimeMillis());
+            fresh.put(entry);
+            for (int i = 0; i < old.length() && fresh.length() < HISTORY_MAX; i++) {
+                JSONObject o = old.getJSONObject(i);
+                if (!key.equals(o.optString("key"))) fresh.put(o);
+            }
+            p.edit().putString("history", fresh.toString()).apply();
+        } catch (Exception e) {
+            lastRecordError = e.getClass().getSimpleName();
+        }
+    }
+
+    public static String history(Context ctx) {
+        try {
+            JSONArray h = new JSONArray(ctx.getSharedPreferences("house", Context.MODE_PRIVATE).getString("history", "[]"));
+            return new JSONObject().put("items", h).put("error", lastRecordError).toString();
+        } catch (Exception e) {
+            return "{\"items\":[]}";
+        }
+    }
+
+    public static String clearHistory(Context ctx) {
+        ctx.getSharedPreferences("house", Context.MODE_PRIVATE).edit().remove("history").apply();
+        return "ok";
+    }
+
     /* ---------------- phone remote address ---------------- */
 
     public static String token(Context ctx) {
