@@ -106,7 +106,7 @@
   setInterval(checkForUpdate, 2 * 60 * 1000);
 
   // Small stamp so we can tell which copy is on screen.
-  var PAGE_VERSION = "page 4";
+  var PAGE_VERSION = "page 5";
   var appVersion = window.HouseTV ? call("version") : "browser";
   setTimeout(function () {
     setText("build", PAGE_VERSION + " · app " + appVersion + " · " +
@@ -276,6 +276,16 @@
     var np = {};
     try { np = JSON.parse(call("nowPlaying") || "{}"); } catch (e) {}
     var card = document.getElementById("np");
+    if (np.error || np.access === false) {
+      // Show why, instead of hiding quietly (helps us debug on the TV).
+      card.classList.remove("hidden");
+      setText("np-app", "Now playing");
+      setText("np-title", np.access === false && !np.error ? "Needs the one-time setup" : "Can't read it yet");
+      setText("np-sub", np.error ? String(np.error) : "");
+      document.getElementById("np-fill").style.width = "0";
+      setText("np-state", "");
+      return;
+    }
     if (!np.title && !np.app) { card.classList.add("hidden"); return; }
     card.classList.remove("hidden");
     setText("np-app", np.state === "playing" ? "Now playing · " + (np.app || "") : (np.app || ""));
