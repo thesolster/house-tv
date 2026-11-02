@@ -6,7 +6,7 @@
 (function () {
   "use strict";
 
-  var PAGE_VERSION = "page 17";
+  var PAGE_VERSION = "page 18";
   var SANTA_CRUZ = { lat: 36.9741, lon: -122.0308, tz: "America/Los_Angeles" };
   var TIDE_STATION = "9413745"; // NOAA, Santa Cruz
   var IDLE_MS = 5 * 60 * 1000;
@@ -437,13 +437,25 @@
     return pref("preview", settings.preview) === "live" && inShell ? { type: "live", url: url, photo: photo, credit: credit } : { type: "photo", url: photo, credit: credit };
   }
 
+  // History is per episode; channels want one tile per show, newest first.
+  function byShow(items) {
+    var seen = {}, out = [];
+    items.slice().sort(function (a, b) { return (b.at || 0) - (a.at || 0); }).forEach(function (w) {
+      var key = w.pkg + "|" + (w.subtitle || w.title);
+      if (seen[key]) return;
+      seen[key] = 1;
+      out.push(w);
+    });
+    return out;
+  }
+
   var rows = [];
   function buildGuide() {
     var out = [];
 
     // 02 Your shows: what you watched, then the apps you've used
     var shows = [];
-    (json("history", {}).items || []).slice(0, 8).forEach(function (w) {
+    byShow(json("history", {}).items || []).slice(0, 8).forEach(function (w) {
       var show = w.subtitle || w.title, ep = w.subtitle ? w.title : "";
       shows.push({
         t: show, s: [ep, w.app, ago(w.at)].filter(Boolean).join(" · "),
@@ -494,8 +506,9 @@
     var channelApps = apps.filter(function (a) { return PREFERRED.indexOf(a.pkg) >= 0 || watchedPkgs[a.pkg]; }).slice(0, 15);
     var otherApps = apps.filter(function (a) { return channelApps.indexOf(a) < 0; });
     channelApps.forEach(function (a, i) {
-      var cells = [{ t: "Open " + a.label, s: "App", now: true, kicker: "App", title: a.label, sub: "Opens " + a.label, preview: appPreview(a.pkg, a.label), act: function () { launch(a); } }];
-      history.filter(function (w) { return w.pkg === a.pkg; }).slice(0, 6).forEach(function (w) {
+      var cells = [];
+      var shows = byShow(history.filter(function (w) { return w.pkg === a.pkg; })).slice(0, 8);
+      shows.forEach(function (w) {
         var show = w.subtitle || w.title, ep = w.subtitle ? w.title : "";
         cells.push({ t: show, s: [ep, ago(w.at)].filter(Boolean).join(" · "), kicker: a.label + " · " + ago(w.at), title: show, sub: (ep ? ep + " · " : "") + "Opens " + a.label,
           preview: appPreview(a.pkg, show, a.label),
@@ -506,6 +519,11 @@
             else toast("Couldn't open " + a.label);
           } });
       });
+      // After your shows: open the app. With nothing yet, say how shows get here.
+      cells.push({ t: "Open " + a.label, s: shows.length ? "Everything else" : "App", now: !shows.length, kicker: "App", title: a.label, sub: "Opens " + a.label,
+        preview: appPreview(a.pkg, a.label), act: function () { launch(a); } });
+      if (!shows.length) cells.push({ t: "Your " + a.label + " shows", s: "Watch something on " + a.label + " and it shows up here", kicker: a.label,
+        title: "Nothing yet", sub: "Watch something on " + a.label + " for a minute and it shows up on this channel", preview: { type: "card", kicker: a.label, title: "Your shows go here" } });
       out.push({ num: String(20 + i), name: a.label, color: "#c9d2ff", cells: cells });
     });
     if (otherApps.length) {
