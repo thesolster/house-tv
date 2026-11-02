@@ -6,7 +6,7 @@
 (function () {
   "use strict";
 
-  var PAGE_VERSION = "page 18";
+  var PAGE_VERSION = "page 19";
   var SANTA_CRUZ = { lat: 36.9741, lon: -122.0308, tz: "America/Los_Angeles" };
   var TIDE_STATION = "9413745"; // NOAA, Santa Cruz
   var IDLE_MS = 5 * 60 * 1000;
@@ -17,13 +17,14 @@
 
   var PREFERRED = [
     "com.netflix.ninja", "com.amazon.firetv.youtube", "com.google.android.youtube.tv",
-    "com.amazon.avod", "com.disney.disneyplus", "com.hulu.plus", "com.wbd.stream",
+    "com.amazon.firebat", "com.disney.disneyplus", "com.hulu.plus", "com.wbd.stream",
     "com.hbo.hbonow", "com.apple.atve.amazon.appletv", "com.peacocktv.peacockandroid",
     "com.spotify.tv.android", "com.plexapp.android", "tv.pluto.android"
   ];
   var HIDDEN = [
     "com.amazon.tv.launcher", "com.amazon.tv.settings.v2", "com.amazon.venezia",
-    "com.amazon.device.software.ota", "com.amazon.tv.oobe", "com.amazon.tv.legal.notices"
+    "com.amazon.device.software.ota", "com.amazon.tv.oobe", "com.amazon.tv.legal.notices",
+    "com.amazon.avod", "com.amazon.tv.livetv", "com.amazon.ssm", "com.amazon.tv.ime"
   ];
 
   /* ---------- bridge ---------- */
@@ -469,7 +470,7 @@
         }
       });
     });
-    json("recent", []).slice(0, 6).forEach(function (a) {
+    json("recent", []).filter(function (a) { return HIDDEN.indexOf(a.pkg) < 0; }).slice(0, 6).forEach(function (a) {
       shows.push({ t: a.label, s: "Recent app", kicker: "Recent app", title: a.label, sub: "Opens " + a.label, preview: appPreview(a.pkg, a.label), act: function () { launch(a); } });
     });
     if (!shows.length) shows.push({ t: "Nothing yet", s: "Watch something and it shows up here", title: "Your shows", sub: "Watch something and it shows up here", preview: { type: "card", kicker: "Your shows", title: "Nothing yet" } });
