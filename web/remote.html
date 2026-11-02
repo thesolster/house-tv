@@ -177,7 +177,7 @@
   function loadSkinsAndRadio() {
     fillGrid("skins", SKINS.map(function (k) { return button(k[1], "", { do: "skin", id: k[0] }); }));
     fetch("https://house-tv.vercel.app/radio.json", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (j) {
-      var btns = (j.stations || []).map(function (st) {
+      var btns = (j.stations || []).filter(function (st) { return !st.soon; }).map(function (st) {
         var b = button(st.name, st.area, { do: "radio", station: st.name, urls: st.streams || [] });
         if (st.find) b.setAttribute("data-find", st.find);
         return b;

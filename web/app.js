@@ -6,7 +6,7 @@
 (function () {
   "use strict";
 
-  var PAGE_VERSION = "page 25";
+  var PAGE_VERSION = "page 26";
   var SANTA_CRUZ = { lat: 36.9741, lon: -122.0308, tz: "America/Los_Angeles" };
   var TIDE_STATION = "9413745"; // NOAA, Santa Cruz
   var IDLE_MS = 5 * 60 * 1000;
@@ -512,6 +512,15 @@
       var on = live.on || {}, next = live.next || {};
       var playing = radioOn && rs.station === cfg.name;
       var cardTitle = on.title || cfg.about;
+      if (cfg.soon) {
+        // Paid streams (KPIG): a placeholder until subscribing from Settings exists.
+        out.push({ num: String(88 + i), name: cfg.name, color: "#7d7268", cells: [{
+          t: "Coming soon", s: "Subscribe from Settings, coming soon", kicker: cfg.area + " · Coming soon", title: "Coming soon",
+          sub: cfg.name + " streams for subscribers. Signing in from Settings is on the way.",
+          preview: { type: "card", kicker: cfg.name + " · " + cfg.area, title: "Coming soon" },
+          act: function () { toast(cfg.name + " is coming soon"); } }] });
+        return;
+      }
       var cells = [{
         t: playing ? "■ Stop" : "▶ Listen" + (on.title ? ": " + on.title : ""),
         s: playing ? (rs.state === "playing" ? "Playing now" : "Tuning in…") : on.title ? [on.host ? "with " + on.host : "", on.until ? "until " + on.until : ""].filter(Boolean).join(" · ") : cfg.area + " · " + cfg.about,
@@ -758,7 +767,8 @@
   function stepStation(dir) {
     if (!radioCfg.length) return;
     var cur = radioStation(), idx = Math.max(0, radioCfg.indexOf(cur));
-    var next = radioCfg[(idx + dir + radioCfg.length) % radioCfg.length];
+    var next = cur, tries = 0;
+    do { idx = (idx + dir + radioCfg.length) % radioCfg.length; next = radioCfg[idx]; } while (next.soon && ++tries < radioCfg.length);
     tune.picked = next;
     var rs = json("radioStatus", {});
     if (!(rs.station === next.name && (rs.state === "playing" || rs.state === "connecting"))) toggleRadio(next);
