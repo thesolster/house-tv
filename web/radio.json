@@ -1,0 +1,26 @@
+{
+  "_note": "Local radio channels. Channel number is the FM frequency. The TV tries each stream in order until one plays.",
+  "stations": [
+    {
+      "code": "KZSC",
+      "num": "88",
+      "name": "KZSC 88.1",
+      "about": "UC Santa Cruz community radio",
+      "playlist": "https://spinitron.com/KZSC/",
+      "streams": [
+        "https://kzscfms1-geckohost.radioca.st/kzschigh",
+        "http://kzscfms1-geckohost.radioca.st/kzschigh",
+        "https://kzscfms1-geckohost.radioca.st/stream",
+        "https://kzscfms1-geckohost.radioca.st/kzsclow"
+      ]
+    },
+    {
+      "code": "KSQD",
+      "num": "90",
+      "name": "KSQD 90.7",
+      "about": "Santa Cruz community radio",
+      "playlist": "https://spinitron.com/KSQD/",
+      "streams": ["http://ksqd.info:8000/stream"]
+    }
+  ]
+}

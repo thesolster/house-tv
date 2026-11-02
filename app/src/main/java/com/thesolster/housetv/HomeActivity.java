@@ -208,6 +208,14 @@ public class HomeActivity extends Activity {
         return "ok";
     }
 
+    /** Run a line of the page's JavaScript from elsewhere in the app (e.g. the phone remote). */
+    static String pageCall(String code) {
+        HomeActivity a = current;
+        if (a == null) return "home screen not open";
+        a.js(code);
+        return "ok";
+    }
+
     private void js(final String code) {
         if (web != null) web.post(() -> web.evaluateJavascript(code, null));
     }
@@ -239,6 +247,9 @@ public class HomeActivity extends Activity {
         @JavascriptInterface public String media(String action) { return Tv.media(ctx, action); }
         @JavascriptInterface public String status() { return Tv.status(ctx); }
         @JavascriptInterface public String history() { return Tv.history(ctx); }
+        @JavascriptInterface public String radioPlay(String station, String urlsJson) { return Radio.play(station, urlsJson); }
+        @JavascriptInterface public String radioStop() { return Radio.stop(); }
+        @JavascriptInterface public String radioStatus() { return Radio.status(); }
         @JavascriptInterface public String resume(String pkg, String mediaId, String mediaUri) { return Tv.resume(ctx, pkg, mediaId, mediaUri); }
 
         /** Play one of a list of channels full screen; left/right flips between them. */

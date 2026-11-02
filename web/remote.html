@@ -63,8 +63,14 @@
 <h2>Live around town</h2>
 <div class="grid" id="live"></div>
 
+<h2>Radio</h2>
+<div class="grid" id="radio"></div>
+
 <h2>Inputs</h2>
 <div class="grid" id="inputs"></div>
+
+<h2>Skin</h2>
+<div class="grid" id="skins"></div>
 
 <details>
   <summary><h2>All apps ›</h2></summary>
@@ -151,6 +157,16 @@
     }).catch(function (e) { toast(/^(Scan|Can't)/.test(e.message || "") ? e.message : "Can't reach the TV. Same wifi?"); });
   }
 
+  var SKINS = [["guide", "Guide"], ["seventies", "Seventies"], ["teletext", "Teletext"], ["surf", "Surf"], ["modern", "Modern"]];
+  function loadSkinsAndRadio() {
+    fillGrid("skins", SKINS.map(function (k) { return button(k[1], "", { do: "skin", id: k[0] }); }));
+    fetch("https://house-tv.vercel.app/radio.json", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (j) {
+      var btns = (j.stations || []).map(function (st) { return button(st.name, "Channel " + st.num, { do: "radio", station: st.name, urls: st.streams || [] }); });
+      btns.push(button("Radio off", "", { do: "radioStop" }));
+      fillGrid("radio", btns);
+    }).catch(function () {});
+  }
+
   function loadLive() {
     fetch(LIVE_URL, { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (j) {
       fillGrid("live", (j.items || []).map(function (it) {
@@ -170,6 +186,7 @@
 
   refresh();
   loadLive();
+  loadSkinsAndRadio();
   setInterval(refresh, 4000);
 })();
 </script>

@@ -106,3 +106,6 @@ body.idle #ambient { opacity: 1; }
 #pv-ch { display: flex; align-items: baseline; gap: 18px; left: 26px; top: 16px; z-index: 2; }
 #pv-ch .ch-n { font-size: 64px; line-height: 1; letter-spacing: 0.02em; }
 #pv-ch .ch-nm { font-size: 40px; line-height: 1; letter-spacing: 0.06em; }
+
+/* Settings: ticker off */
+body.no-ticker #ticker { display: none; }

@@ -6,7 +6,7 @@
 (function () {
   "use strict";
 
-  var PAGE_VERSION = "page 15";
+  var PAGE_VERSION = "page 16";
   var SANTA_CRUZ = { lat: 36.9741, lon: -122.0308, tz: "America/Los_Angeles" };
   var TIDE_STATION = "9413745"; // NOAA, Santa Cruz
   var IDLE_MS = 5 * 60 * 1000;
@@ -111,15 +111,31 @@
   /* ---------- settings: theme, note, extra ticker lines ---------- */
 
   var settings = { theme: "", note: "", lines: [], preview: "live" };
+
+  // Choices made on this TV (Channel 99 Settings). The house file sets the defaults.
+  var prefs = loadPrefs();
+  function loadPrefs() {
+    var p = {};
+    try { p = JSON.parse(localStorage.getItem("house-prefs") || "{}") || {}; } catch (e) {}
+    try { var old = localStorage.getItem("house-skin"); if (old && !p.skin) p.skin = old; } catch (e) {}
+    return p;
+  }
+  function savePrefs() { try { localStorage.setItem("house-prefs", JSON.stringify(prefs)); } catch (e) {} }
+  function pref(key, fallback) { return prefs[key] || fallback; }
+  function applyPrefs() {
+    document.body.classList.toggle("no-ticker", pref("ticker", "on") === "off");
+    var showNote = pref("note", "show") === "show" && settings.note;
+    setText("note", showNote ? "♥ " + settings.note : "");
+    setText("ambient-note", showNote ? "♥ " + settings.note : "");
+  }
   function loadSettings() {
     return getJSON("ticker.json?t=" + Date.now()).then(function (j) {
       settings.theme = j.theme === "retro" ? "guide" : (j.theme || "modern");
       settings.note = j.note || "";
       settings.lines = (j.lines || []).filter(Boolean);
       settings.preview = j.preview || "live";
-      applySkin(chosenSkin() || settings.theme);
-      setText("note", settings.note ? "♥ " + settings.note : "");
-      setText("ambient-note", settings.note ? "♥ " + settings.note : "");
+      applySkin(pref("skin", settings.theme));
+      applyPrefs();
       tick();
       buildTicker();
     }).catch(function () {});
@@ -135,7 +151,7 @@
     { id: "modern", name: "Modern", about: "Clean and dark", clock: "plain", colors: ["#12100e", "#f2a65a", "#f4ede4"] }
   ];
   var skin = SKINS[4];
-  function chosenSkin() { try { return localStorage.getItem("house-skin") || ""; } catch (e) { return ""; } }
+  function chosenSkin() { return pref("skin", ""); }
   function applySkin(id) {
     var found = SKINS.filter(function (k) { return k.id === id; })[0] || SKINS[4];
     skin = found;
@@ -143,7 +159,8 @@
     tick();
   }
   function pickSkin(id) {
-    try { localStorage.setItem("house-skin", id); } catch (e) {}
+    prefs.skin = id;
+    savePrefs();
     applySkin(id);
     buildGuide();
     toast("Skin: " + skin.name);
@@ -215,7 +232,11 @@
 
   /* ---------- Regular: the town station and channel feed ---------- */
 
-  var town = { events: [], alerts: [], photos: [], radio: [], ticker: [], channels: [] };
+  var town = { events: [], alerts: [], photos: [], radio: [], ticker: [], channels: [], stations: [] };
+  var radioCfg = [];
+  function loadRadio() {
+    return getJSON("radio.json?t=" + Date.now()).then(function (j) { radioCfg = j.stations || []; buildGuide(); }).catch(function () {});
+  }
 
   function firstJSON(urls) {
     var i = 0;
@@ -276,6 +297,7 @@
       if (chans.length) town.channels = chans;
     }).catch(function () {});
     var feed = firstJSON(REGULAR_FEED).then(function (f) {
+      town.stations = f.radio || [];
       town.radio = (f.radio || []).filter(function (r) { return r.on && r.on.title; }).map(function (r) {
         return "On " + r.station + ": " + r.on.title + (r.on.host ? " with " + r.on.host : "") + (r.on.until ? " until " + r.on.until : "");
       });
@@ -338,9 +360,21 @@
   /* ---------- now playing + phone remote ---------- */
 
   var np = {};
+  var lastRadioState = "";
   function refreshNowPlaying() {
     np = json("nowPlaying", {});
     var box = document.getElementById("np");
+    var rs = json("radioStatus", {});
+    if (rs.state === "playing" || rs.state === "connecting") {
+      var live = town.stations.filter(function (r) { return rs.station && rs.station.indexOf(r.station) === 0; })[0] || {};
+      box.classList.remove("hidden");
+      setText("np-app", (rs.state === "playing" ? "On the radio · " : "Tuning in · ") + rs.station);
+      setText("np-title", (live.on && live.on.title) || "Live");
+      document.getElementById("np-fill").style.width = "100%";
+      return;
+    }
+    if (rs.state === "failed" && lastRadioState !== "failed") toast("Couldn't tune in " + rs.station + " (" + (rs.error || "no stream") + ")");
+    lastRadioState = rs.state;
     if (!np.title && !np.app) { box.classList.add("hidden"); return; }
     box.classList.remove("hidden");
     setText("np-app", (np.state === "playing" ? "Now playing · " : np.state === "paused" ? "Paused · " : "") + (np.app || ""));
@@ -400,7 +434,7 @@
     if (r !== "ok") toast("Couldn't open " + list[i].name);
   }
   function livePreview(url, photo, credit) {
-    return settings.preview === "live" && inShell ? { type: "live", url: url, photo: photo, credit: credit } : { type: "photo", url: photo, credit: credit };
+    return pref("preview", settings.preview) === "live" && inShell ? { type: "live", url: url, photo: photo, credit: credit } : { type: "photo", url: photo, credit: credit };
   }
 
   var rows = [];
@@ -467,24 +501,67 @@
       out.push({ num: num, name: ch.name, color: ch.color, cells: cells });
     });
 
-    // 20 Apps, 21 Inputs
+    // 20+ Each app is its own channel: open it, plus what you watched there.
+    var history = json("history", {}).items || [];
     var apps = sortApps(json("apps", []));
-    out.push({ num: "20", name: "Apps", color: "#c9d2ff", cells: apps.map(function (a) {
-      return { t: a.label, s: "App", kicker: "App", title: a.label, sub: "Opens " + a.label, preview: appPreview(a.pkg, a.label), act: function () { launch(a); } };
-    }) });
+    var watchedPkgs = {};
+    history.forEach(function (w) { watchedPkgs[w.pkg] = 1; });
+    var channelApps = apps.filter(function (a) { return PREFERRED.indexOf(a.pkg) >= 0 || watchedPkgs[a.pkg]; }).slice(0, 15);
+    var otherApps = apps.filter(function (a) { return channelApps.indexOf(a) < 0; });
+    channelApps.forEach(function (a, i) {
+      var cells = [{ t: "Open " + a.label, s: "App", now: true, kicker: "App", title: a.label, sub: "Opens " + a.label, preview: appPreview(a.pkg, a.label), act: function () { launch(a); } }];
+      history.filter(function (w) { return w.pkg === a.pkg; }).slice(0, 6).forEach(function (w) {
+        var show = w.subtitle || w.title, ep = w.subtitle ? w.title : "";
+        cells.push({ t: show, s: [ep, ago(w.at)].filter(Boolean).join(" · "), kicker: a.label + " · " + ago(w.at), title: show, sub: (ep ? ep + " · " : "") + "Opens " + a.label,
+          preview: appPreview(a.pkg, show, a.label),
+          act: function () {
+            var r = bridge.resume ? call("resume", w.pkg, "", "") : call("launch", w.pkg);
+            if (r === "resumed") toast("Picking up " + show);
+            else if (r === "app" || r === "ok") toast("Opening " + a.label + " · " + show + " is under Continue Watching");
+            else toast("Couldn't open " + a.label);
+          } });
+      });
+      out.push({ num: String(20 + i), name: a.label, color: "#c9d2ff", cells: cells });
+    });
+    if (otherApps.length) {
+      out.push({ num: "39", name: "More apps", color: "#c9d2ff", cells: otherApps.map(function (a) {
+        return { t: a.label, s: "App", kicker: "App", title: a.label, sub: "Opens " + a.label, preview: appPreview(a.pkg, a.label), act: function () { launch(a); } };
+      }) });
+    }
+
+    // 88, 90 Local radio, numbered by frequency. OK plays the live stream; OK again stops it.
+    var rs = json("radioStatus", {});
+    radioCfg.forEach(function (cfg) {
+      var live = town.stations.filter(function (r) { return r.station === cfg.code; })[0] || {};
+      var on = live.on || {}, next = live.next || {};
+      var playing = rs.station === cfg.name && (rs.state === "playing" || rs.state === "connecting");
+      var nowTitle = on.title || cfg.about;
+      var listen = {
+        t: (playing ? "■ Stop " : "▶ Listen: ") + nowTitle, s: [on.host, on.until ? "until " + on.until : ""].filter(Boolean).join(" · ") || cfg.about, now: true,
+        kicker: cfg.name + " FM · " + (playing ? (rs.state === "playing" ? "Playing now" : "Tuning in…") : "On the air"), title: nowTitle,
+        sub: [on.host ? "with " + on.host : "", on.until ? "until " + on.until : ""].filter(Boolean).join(" · ") || cfg.about,
+        preview: { type: "card", kicker: cfg.name + " FM · On the air", title: nowTitle },
+        act: function () { toggleRadio(cfg); }
+      };
+      var cells = [listen];
+      if (next.title) cells.push({ t: "Next: " + next.title, s: next.at || "", kicker: cfg.name + " FM · Up next", title: next.title, sub: next.at ? "at " + next.at : "",
+        preview: { type: "card", kicker: cfg.name + " FM · Up next", title: next.title }, act: function () { toggleRadio(cfg); } });
+      cells.push({ t: "Playlist", s: "What's been playing", kicker: cfg.name + " FM", title: "Playlist", sub: "What's been playing on " + cfg.name,
+        preview: { type: "card", kicker: cfg.name + " FM", title: "Playlist" }, act: function () { call("view", cfg.playlist); } });
+      out.push({ num: cfg.num, name: cfg.name, color: "#7dff8a", cells: cells });
+    });
+
+    // 95 Inputs
     var inputs = json("inputs", []).map(function (i) {
       return { t: i.label, s: "Input", kicker: "Input", title: i.label, sub: "Switch the TV to " + i.label, preview: { type: "card", kicker: "Input", title: i.label },
         act: function () { var r = call("openInput", i.id); if (r !== "ok") toast("Couldn't switch to " + i.label + " (" + r + ")"); } };
     });
-    inputs.push({ t: "Settings", s: "Fire TV", kicker: "Settings", title: "Settings", sub: "Fire TV settings", preview: { type: "card", kicker: "Fire TV", title: "Settings" },
+    inputs.push({ t: "Fire TV settings", s: "Network, sound, display", kicker: "Fire TV", title: "Fire TV settings", sub: "Network, sound, display, apps", preview: { type: "card", kicker: "Fire TV", title: "Settings" },
       act: function () { if (call("settings") !== "ok") toast("Couldn't open settings"); } });
-    out.push({ num: "21", name: "Inputs", color: "#c9d2ff", cells: inputs });
+    out.push({ num: "95", name: "Inputs", color: "#c9d2ff", cells: inputs });
 
-    // 22 Skins: change how the whole screen looks; the TV remembers your pick
-    out.push({ num: "22", name: "Skins", color: "#ff7aa2", cells: SKINS.map(function (k) {
-      return { t: k.name + (k.id === skin.id ? " ✓" : ""), s: k.about, kicker: "Skin" + (k.id === skin.id ? " · on now" : ""), title: k.name, sub: k.about,
-        preview: { type: "swatch", colors: k.colors, title: k.name }, act: function () { pickSkin(k.id); } };
-    }) });
+    // 99 Settings: how this TV looks and behaves. OK cycles each one; saved on this TV.
+    out.push({ num: "99", name: "Settings", color: "#ff7aa2", cells: settingCells() });
 
     // Keep focus on the same channel if it still exists
     var keepNum = rows[focus.r] ? rows[focus.r].num : null;
@@ -496,6 +573,61 @@
   }
 
   function launch(a) { if (call("launch", a.pkg) !== "ok") toast("Couldn't open " + a.label); }
+
+  function toggleRadio(cfg) {
+    if (!bridge.radioPlay) { toast("Radio needs the newest app update"); return; }
+    var rs = json("radioStatus", {});
+    if (rs.station === cfg.name && (rs.state === "playing" || rs.state === "connecting")) {
+      call("radioStop");
+      toast(cfg.name + " off");
+    } else {
+      call("radioPlay", cfg.name, JSON.stringify(cfg.streams || []));
+      toast("Tuning in " + cfg.name + "…");
+    }
+    setTimeout(buildGuide, 400);
+    setTimeout(function () { buildGuide(); refreshNowPlaying(); }, 4000);
+  }
+
+  // Each setting: a name, its choices, what each choice means, and how to apply it.
+  var SETTINGS = [
+    { key: "skin", name: "Skin", choices: function () { return SKINS.map(function (k) { return k.id; }); },
+      label: function (v) { return (SKINS.filter(function (k) { return k.id === v; })[0] || {}).name || v; },
+      about: function (v) { return (SKINS.filter(function (k) { return k.id === v; })[0] || {}).about || ""; },
+      current: function () { return skin.id; }, set: function (v) { pickSkin(v); } },
+    { key: "preview", name: "Little TV", choices: function () { return ["live", "stills"]; },
+      label: function (v) { return v === "live" ? "Live channels" : "Photos only"; },
+      about: function (v) { return v === "live" ? "Regular channels play live in the little TV" : "Lighter on the TV: photos instead of live channels"; },
+      current: function () { return pref("preview", settings.preview); } },
+    { key: "idle", name: "When idle", choices: function () { return ["town", "clock", "off"]; },
+      label: function (v) { return v === "town" ? "Clock, then town" : v === "clock" ? "Clock only" : "Stay on the guide"; },
+      about: function (v) { return v === "town" ? "Big clock after 5 minutes, Regular's town station after 15" : v === "clock" ? "Big clock after 5 minutes" : "Never change on its own"; },
+      current: function () { return pref("idle", "town"); } },
+    { key: "ticker", name: "Ticker", choices: function () { return ["on", "off"]; },
+      label: function (v) { return v === "on" ? "On" : "Off"; },
+      about: function (v) { return v === "on" ? "Town news crawl along the bottom" : "No crawl along the bottom"; },
+      current: function () { return pref("ticker", "on"); } },
+    { key: "note", name: "House note", choices: function () { return ["show", "hide"]; },
+      label: function (v) { return v === "show" ? "Show" : "Hide"; },
+      about: function () { return settings.note ? "“" + settings.note + "”" : "No note set"; },
+      current: function () { return pref("note", "show"); } }
+  ];
+
+  function settingCells() {
+    return SETTINGS.map(function (st) {
+      var v = st.current(), label = st.label(v);
+      var k = st.key === "skin" ? SKINS.filter(function (x) { return x.id === v; })[0] : null;
+      return {
+        t: st.name + ": " + label, s: st.about(v), kicker: "Settings · OK to change", title: st.name + ": " + label, sub: st.about(v),
+        preview: k ? { type: "swatch", colors: k.colors, title: k.name } : { type: "card", kicker: "Settings · " + st.name, title: label },
+        act: function () {
+          var list = st.choices(), next = list[(list.indexOf(st.current()) + 1) % list.length];
+          if (st.set) st.set(next);
+          else { prefs[st.key] = next; savePrefs(); applyPrefs(); wake(); toast(st.name + ": " + st.label(next)); }
+          buildGuide();
+        }
+      };
+    });
+  }
 
   var focus = { r: 0, c: 0 };
   var VISIBLE_ROWS = 5, ROW_H = 76;
@@ -562,7 +694,9 @@
     setText("hl-kicker", row.num + " · " + (c.kicker || row.name));
     setText("hl-title", c.title || c.t);
     setText("hl-sub", c.sub || c.s || "");
-    setText("hl-hint", c.act ? "OK ▸ " + (row.num === "20" ? "open" : row.num === "21" ? "switch" : row.num === "22" ? "use this skin" : "watch") : "");
+    var n = parseInt(row.num, 10);
+    var verb = n === 99 ? "change" : n === 95 ? "switch" : (n === 88 || n === 90) ? "listen" : (n >= 20 && n <= 39) ? "open" : "watch";
+    setText("hl-hint", c.act ? "OK ▸ " + verb : "");
     var chEl = document.getElementById("pv-ch");
     var chHtml = '<span class="ch-n">CHANNEL ' + parseInt(row.num, 10) + '</span><span class="ch-nm">' + esc(row.name.toUpperCase()) + "</span>";
     if (chEl.innerHTML !== chHtml) chEl.innerHTML = chHtml;
@@ -686,8 +820,9 @@
     document.body.classList.remove("idle");
     clearTimeout(idleTimer);
     clearTimeout(stationTimer);
-    idleTimer = setTimeout(function () { document.body.classList.add("idle"); }, IDLE_MS);
-    if (inShell) {
+    var idle = pref("idle", "town");
+    if (idle !== "off") idleTimer = setTimeout(function () { document.body.classList.add("idle"); }, IDLE_MS);
+    if (inShell && idle === "town") {
       stationTimer = setTimeout(function () {
         if (json("nowPlaying", {}).state !== "playing") call("view", STATION_PAGE);
       }, STATION_AFTER_MS);
@@ -695,7 +830,8 @@
     return wasIdle;
   }
 
-  // Called by the Android shell.
+  // Called by the Android shell (and the phone remote).
+  window.houseSkin = function (id) { if (SKINS.some(function (k) { return k.id === id; })) pickSkin(id); };
   window.houseBack = function () {
     if (wake()) return;
     if (viewMode) { setView(false); return; }
@@ -723,12 +859,14 @@
   /* ---------- start ---------- */
 
   applySkin(chosenSkin() || "guide");
+  applyPrefs();
   wake();
   buildGuide();
   loadSettings();
   refreshConditions();
   loadTown();
   loadLive();
+  loadRadio();
   refreshNowPlaying();
   refreshRemote();
   setInterval(refreshConditions, 15 * 60 * 1000);
