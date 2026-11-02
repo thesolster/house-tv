@@ -6,7 +6,7 @@
 (function () {
   "use strict";
 
-  var PAGE_VERSION = "page 12";
+  var PAGE_VERSION = "page 13";
   var SANTA_CRUZ = { lat: 36.9741, lon: -122.0308, tz: "America/Los_Angeles" };
   var TIDE_STATION = "9413745"; // NOAA, Santa Cruz
   var IDLE_MS = 5 * 60 * 1000;
@@ -92,7 +92,7 @@
   var fingerprint = null;
   function checkForUpdate() {
     if (location.protocol === "file:") return;
-    Promise.all(["app.js", "style.css", "retro.css", "index.html"].map(function (f) {
+    Promise.all(["app.js", "style.css", "index.html", "skins/guide.css", "skins/seventies.css", "skins/teletext.css", "skins/surf.css"].map(function (f) {
       return fetch(f + "?v=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.text(); });
     })).then(function (parts) {
       var text = parts.join("|"), hash = 0;
@@ -113,16 +113,40 @@
   var settings = { theme: "", note: "", lines: [], preview: "live" };
   function loadSettings() {
     return getJSON("ticker.json?t=" + Date.now()).then(function (j) {
-      settings.theme = j.theme || "";
+      settings.theme = j.theme === "retro" ? "guide" : (j.theme || "modern");
       settings.note = j.note || "";
       settings.lines = (j.lines || []).filter(Boolean);
       settings.preview = j.preview || "live";
-      document.body.classList.toggle("retro", settings.theme === "retro");
+      applySkin(chosenSkin() || settings.theme);
       setText("note", settings.note ? "♥ " + settings.note : "");
       setText("ambient-note", settings.note ? "♥ " + settings.note : "");
       tick();
       buildTicker();
     }).catch(function () {});
+  }
+
+  /* ---------- skins ---------- */
+
+  var SKINS = [
+    { id: "guide", name: "Guide", about: "1988 cable guide channel, blue and yellow", clock: "vcr", colors: ["#0b0d3a", "#ffd23f", "#7dff8a"] },
+    { id: "seventies", name: "Seventies", about: "Wood panel, mustard and orange, sunset stripes", clock: "vcr", colors: ["#3b200c", "#ffb000", "#e2562a"] },
+    { id: "teletext", name: "Teletext", about: "Ceefax pages: black, eight colors, blocky", clock: "24", colors: ["#000000", "#ffff00", "#00ffff"] },
+    { id: "surf", name: "Surf", about: "Santa Cruz surf poster: sand, ocean, sunset", clock: "plain", colors: ["#f3e6cc", "#0f6e7a", "#e8573c"] },
+    { id: "modern", name: "Modern", about: "Clean and dark", clock: "plain", colors: ["#12100e", "#f2a65a", "#f4ede4"] }
+  ];
+  var skin = SKINS[4];
+  function chosenSkin() { try { return localStorage.getItem("house-skin") || ""; } catch (e) { return ""; } }
+  function applySkin(id) {
+    var found = SKINS.filter(function (k) { return k.id === id; })[0] || SKINS[4];
+    skin = found;
+    SKINS.forEach(function (k) { document.body.classList.toggle("skin-" + k.id, k.id === found.id); });
+    tick();
+  }
+  function pickSkin(id) {
+    try { localStorage.setItem("house-skin", id); } catch (e) {}
+    applySkin(id);
+    buildGuide();
+    toast("Skin: " + skin.name);
   }
 
   /* ---------- clock ---------- */
@@ -133,8 +157,9 @@
   function fmtShortTime(x) { var d = new Date(x); return fmtTime(d) + (d.getHours() < 12 ? "am" : "pm"); }
   function tick() {
     var d = new Date(), t = fmtTime(d);
-    var retro = document.body.classList.contains("retro");
-    setText("clock", retro ? (d.getHours() < 12 ? "AM " : "PM ") + t : t);
+    var mode = skin ? skin.clock : "plain";
+    var hh = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+    setText("clock", mode === "vcr" ? (d.getHours() < 12 ? "AM " : "PM ") + t : mode === "24" ? hh : t);
     setText("ambient-clock", t);
     var date = DAYS[d.getDay()] + ", " + MONTHS[d.getMonth()] + " " + d.getDate();
     setText("date", date);
@@ -429,8 +454,10 @@
     }
 
     // 05+ Regular's channels, one row each
+    var rowNum = 5;
     town.channels.forEach(function (ch, i) {
-      var num = String(5 + i).padStart(2, "0");
+      if (ch.id === "tonight" && town.events.length) return; // already channel 04
+      var num = String(rowNum++).padStart(2, "0");
       var pv = livePreview(ch.url, ch.photo, ch.credit);
       var cells = [{ t: "Watch " + ch.name, s: ch.about, now: true, kicker: "Regular TV · " + ch.name, title: ch.name, sub: ch.about, preview: pv, act: function () { watchChannel(i + 1); } }];
       ch.items.slice(0, 6).forEach(function (it) {
@@ -452,6 +479,12 @@
     inputs.push({ t: "Settings", s: "Fire TV", kicker: "Settings", title: "Settings", sub: "Fire TV settings", preview: { type: "card", kicker: "Fire TV", title: "Settings" },
       act: function () { if (call("settings") !== "ok") toast("Couldn't open settings"); } });
     out.push({ num: "21", name: "Inputs", color: "#c9d2ff", cells: inputs });
+
+    // 22 Skins: change how the whole screen looks; the TV remembers your pick
+    out.push({ num: "22", name: "Skins", color: "#ff7aa2", cells: SKINS.map(function (k) {
+      return { t: k.name + (k.id === skin.id ? " ✓" : ""), s: k.about, kicker: "Skin" + (k.id === skin.id ? " · on now" : ""), title: k.name, sub: k.about,
+        preview: { type: "swatch", colors: k.colors, title: k.name }, act: function () { pickSkin(k.id); } };
+    }) });
 
     // Keep focus on the same channel if it still exists
     var keepNum = rows[focus.r] ? rows[focus.r].num : null;
@@ -529,7 +562,7 @@
     setText("hl-kicker", row.num + " · " + (c.kicker || row.name));
     setText("hl-title", c.title || c.t);
     setText("hl-sub", c.sub || c.s || "");
-    setText("hl-hint", c.act ? "OK ▸ " + (row.num === "20" ? "open" : row.num === "21" ? "switch" : "watch") : "");
+    setText("hl-hint", c.act ? "OK ▸ " + (row.num === "20" ? "open" : row.num === "21" ? "switch" : row.num === "22" ? "use this skin" : "watch") : "");
     setText("pv-ch", "CH " + row.num);
     showPreview(c.preview || { type: "card", kicker: row.name, title: c.title || c.t });
   }
@@ -562,10 +595,30 @@
     if (pvLiveUrl) { pvLiveUrl = ""; pv.live.src = "about:blank"; }
     if (p.type === "photo" && p.url) { setPhoto(p.url); only("photo"); }
     else if (p.type === "banner" && p.src) { pv.banner.src = p.src; only("banner"); }
+    else if (p.type === "swatch") {
+      // A skin's three colors as stripes, with its name on top
+      var c = p.colors;
+      pv.card.style.background = "linear-gradient(180deg," + c[0] + " 0 68%," + c[1] + " 68% 84%," + c[2] + " 84% 100%)";
+      pv.card.style.justifyContent = "flex-start";
+      pv.card.style.paddingTop = "96px";
+      cardPreview("Skin", p.title);
+      document.getElementById("pv-card-title").style.color = c[1];
+      document.getElementById("pv-card-kicker").style.color = c[2];
+      return;
+    }
     else cardPreview(p.kicker || "", p.title || "");
   }
   function setPhoto(url) { pv.photo.style.backgroundImage = "url('" + String(url).replace(/'/g, "%27") + "')"; }
   function cardPreview(kicker, title) { setText("pv-card-kicker", kicker); setText("pv-card-title", title); only("card"); }
+  // Swatches paint the card; reset it whenever we leave one
+  var _showPreview = showPreview;
+  showPreview = function (p) {
+    if (p.type !== "swatch") {
+      pv.card.style.background = ""; pv.card.style.justifyContent = ""; pv.card.style.paddingTop = "";
+      document.getElementById("pv-card-title").style.color = ""; document.getElementById("pv-card-kicker").style.color = "";
+    }
+    _showPreview(p);
+  };
 
   /* ---------- keys ---------- */
 
@@ -637,6 +690,7 @@
 
   /* ---------- start ---------- */
 
+  applySkin(chosenSkin() || "guide");
   wake();
   buildGuide();
   loadSettings();

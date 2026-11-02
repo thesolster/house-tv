@@ -1,0 +1,67 @@
+/* Seventies skin: wood-panel console set, mustard and orange, sunset stripes. */
+
+body.skin-seventies {
+  --bg: #2a170a;
+  --bg-2: #3a2210;
+  --panel: #4a2c14;
+  --ink: #fbe7c6;
+  --ink-2: #e8b77a;
+  --ink-3: #c0915e;
+  --accent: #ffb000;
+  --accent-2: #e2562a;
+  --line: rgba(251, 231, 198, 0.18);
+  --cell: #5a3418;
+  --cell-focus: #7a4a20;
+  --serif: "Righteous", "Arial Black", sans-serif;
+  --sans: "Inter", "Helvetica Neue", Arial, sans-serif;
+  --vcr: #ffd27a;
+  --clock-color: var(--vcr);
+  --stripe: linear-gradient(180deg, #ffd23f 0 20%, #ff9f1c 20% 40%, #f25c19 40% 60%, #c2341c 60% 80%, #7a2c12 80% 100%);
+  --wood: repeating-linear-gradient(92deg, #3b200c 0 14px, #45270f 14px 22px, #352009 22px 40px, #4d2c12 40px 46px);
+}
+body.skin-seventies, body.skin-seventies #stage { background: var(--wood); }
+
+body.skin-seventies #crt {
+  display: block; position: absolute; inset: 0; pointer-events: none; z-index: 50;
+  background: repeating-linear-gradient(180deg, rgba(0,0,0,0) 0 2px, rgba(0,0,0,0.12) 2px 4px),
+              radial-gradient(ellipse at center, rgba(0,0,0,0) 60%, rgba(0,0,0,0.5) 100%);
+  border-radius: 56px / 46px;
+  box-shadow: inset 0 0 0 16px #1a0d04;
+}
+
+/* The little TV: chunky rounded set with a chrome rim */
+body.skin-seventies #preview { border: 10px solid #c9b48f; border-radius: 46px; box-shadow: 0 0 0 6px #1a0d04, 10px 12px 0 rgba(0,0,0,0.5); }
+body.skin-seventies #pv-photo { filter: sepia(0.6) saturate(1.3) hue-rotate(-10deg); }
+body.skin-seventies #pv-card { background: var(--stripe); }
+body.skin-seventies #pv-card-kicker { color: #2a170a; }
+body.skin-seventies #pv-card-title { font-family: var(--serif); font-weight: 400; color: #2a170a; }
+body.skin-seventies #pv-ch { font-family: var(--serif); font-weight: 400; color: #ffd23f; text-shadow: 3px 3px 0 #2a170a; }
+
+/* Info panel on a mustard placard */
+body.skin-seventies #info { background: rgba(26, 13, 4, 0.55); border-radius: 28px; padding: 22px 26px; }
+body.skin-seventies #clock { font-family: var(--serif); font-size: 80px; text-shadow: 4px 4px 0 #7a2c12; }
+body.skin-seventies #date, body.skin-seventies #weather { color: var(--ink-2); }
+body.skin-seventies .note { font-family: var(--serif); font-style: normal; color: #ff8fa3; text-shadow: 2px 2px 0 #4a1020; }
+body.skin-seventies #hl-kicker { color: #ffb000; }
+body.skin-seventies #hl-title { font-family: var(--serif); font-weight: 400;
+  background: var(--stripe); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(3px 3px 0 #1a0d04); }
+body.skin-seventies #np { background: var(--panel); border: 3px solid #ffb000; border-radius: 20px; }
+body.skin-seventies #np-fill { background: var(--stripe); }
+
+/* Guide: rounded mustard and orange tiles */
+body.skin-seventies #guide-head { background: var(--stripe); border-radius: 18px 18px 0 0; padding: 0 18px; }
+body.skin-seventies .gh-left { font-family: var(--serif); font-weight: 400; color: #2a170a; letter-spacing: 0.08em; }
+body.skin-seventies .gh-right { color: #2a170a; }
+body.skin-seventies .g-chan { background: #1a0d04; border-left-width: 10px; border-radius: 14px; }
+body.skin-seventies .g-num { font-family: var(--serif); font-weight: 400; color: #ffb000; }
+body.skin-seventies .g-cell { border-radius: 14px; background: var(--cell); }
+body.skin-seventies .g-cell.focus { background: #ffb000; border-color: #fff3c4; }
+body.skin-seventies .g-cell.focus .t, body.skin-seventies .g-cell.focus .s { color: #2a170a; }
+
+body.skin-seventies #ticker { background: #1a0d04; border-top: 4px solid #ffb000; }
+body.skin-seventies #ticker .tag { background: var(--stripe); color: #2a170a; font-family: var(--serif); font-weight: 400; }
+body.skin-seventies #ticker .strip i { color: #ffb000; }
+
+body.skin-seventies #ambient { background: var(--wood); }
+body.skin-seventies #ambient-clock { font-family: var(--serif); color: #ffd23f; text-shadow: 8px 8px 0 #7a2c12; }
+body.skin-seventies #toast { background: #1a0d04; border: 3px solid #ffb000; border-radius: 22px; }

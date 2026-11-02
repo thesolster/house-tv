@@ -1,0 +1,78 @@
+/* Teletext skin: Ceefax-style pages. Black screen, eight colors, blocky text, no curves. */
+
+body.skin-teletext {
+  --bg: #000;
+  --bg-2: #000;
+  --panel: #000;
+  --ink: #ffffff;
+  --ink-2: #00ffff;
+  --ink-3: #ffff00;
+  --accent: #ffff00;
+  --accent-2: #ff0000;
+  --line: #0000ff;
+  --cell: #000;
+  --cell-focus: #0000ff;
+  --serif: "VT323", "Courier New", monospace;
+  --sans: "VT323", "Courier New", monospace;
+  --clock-color: #ffff00;
+}
+body.skin-teletext, body.skin-teletext #stage { background: #000; }
+body.skin-teletext * { border-radius: 0 !important; }
+body.skin-teletext { text-transform: uppercase; }
+
+/* Page header line, like "P100 HOUSE 100" */
+body.skin-teletext #guide-head { background: #0000ff; }
+body.skin-teletext .gh-left { font-family: var(--sans); font-size: 30px; color: #ffff00; letter-spacing: 0.04em; }
+body.skin-teletext .gh-left::before { content: "P100  "; color: #fff; }
+body.skin-teletext .gh-right { font-family: var(--sans); font-size: 26px; color: #fff; }
+
+body.skin-teletext #preview { border: 4px solid #00ffff; }
+body.skin-teletext #pv-photo { filter: contrast(1.6) saturate(2) blur(0.5px); image-rendering: pixelated; }
+body.skin-teletext #pv-card { background: #000; }
+body.skin-teletext #pv-card-kicker { font-family: var(--sans); font-size: 34px; color: #00ff00; letter-spacing: 0; }
+body.skin-teletext #pv-card-title { font-family: var(--sans); font-size: 96px; font-weight: 400; color: #ffff00; line-height: 0.95; transform: scaleY(1.4); transform-origin: left top; }
+body.skin-teletext #pv-banner { background: #000; }
+body.skin-teletext #pv-ch { font-family: var(--sans); font-size: 44px; font-weight: 400; color: #fff; background: #ff0000; padding: 0 10px; text-shadow: none; }
+body.skin-teletext #pv-credit { font-family: var(--sans); color: #00ffff; font-size: 20px; }
+
+body.skin-teletext #clock { font-family: var(--sans); font-size: 92px; }
+body.skin-teletext #date { font-family: var(--sans); font-size: 30px; color: #00ffff; }
+body.skin-teletext #weather { font-family: var(--sans); font-size: 30px; color: #00ff00; }
+body.skin-teletext .note { font-family: var(--sans); font-style: normal; color: #ff00ff; }
+body.skin-teletext #note { font-size: 34px; }
+body.skin-teletext #hl-kicker { font-family: var(--sans); font-size: 30px; font-weight: 400; color: #00ff00; letter-spacing: 0; }
+body.skin-teletext #hl-title { font-family: var(--sans); font-size: 64px; font-weight: 400; color: #ffff00; }
+body.skin-teletext #hl-sub { font-family: var(--sans); font-size: 32px; color: #fff; }
+body.skin-teletext #hl-hint { font-family: var(--sans); font-size: 28px; color: #00ffff; }
+body.skin-teletext #np { border: 3px solid #ff00ff; }
+body.skin-teletext #np-app { font-family: var(--sans); font-size: 26px; font-weight: 400; color: #ff00ff; letter-spacing: 0; }
+body.skin-teletext #np-title { font-family: var(--sans); font-size: 30px; font-weight: 400; }
+body.skin-teletext #np-fill { background: #00ff00; }
+body.skin-teletext .remote-text { font-family: var(--sans); font-size: 24px; color: #00ffff; }
+
+body.skin-teletext #guide-window { border: 0; }
+body.skin-teletext .g-row { gap: 0; border-bottom: 2px solid #0000ff; }
+body.skin-teletext .g-chan { background: #000; border-left: 0; }
+body.skin-teletext .g-num { font-family: var(--sans); font-size: 42px; font-weight: 400; color: #00ff00; }
+body.skin-teletext .g-name { font-family: var(--sans); font-size: 30px; font-weight: 400; color: #00ffff; }
+body.skin-teletext .g-cell { background: #000; border: 0; }
+body.skin-teletext .g-cell .t { font-family: var(--sans); font-size: 32px; font-weight: 400; color: #fff; }
+body.skin-teletext .g-cell .s { font-family: var(--sans); font-size: 24px; color: #ffff00; }
+body.skin-teletext .g-cell.now .t::before { content: "\25A0 "; color: #ff0000; }
+body.skin-teletext .g-row.active .g-chan { background: #ff0000; }
+body.skin-teletext .g-row.active .g-num, body.skin-teletext .g-row.active .g-name { color: #fff; }
+body.skin-teletext .g-cell.focus { background: #0000ff; }
+body.skin-teletext .g-cell.focus .s { color: #00ffff; }
+
+body.skin-teletext #ticker { background: #000; border-top: 3px solid #0000ff; }
+body.skin-teletext #ticker .tag { background: #ff0000; color: #fff; font-family: var(--sans); font-size: 32px; font-weight: 400; }
+body.skin-teletext #ticker .strip { font-family: var(--sans); font-size: 40px; color: #fff; }
+body.skin-teletext #ticker .strip i { color: #00ff00; }
+
+body.skin-teletext #ambient { background: #000; }
+body.skin-teletext #ambient-clock { font-family: var(--sans); color: #ffff00; font-size: 300px; }
+body.skin-teletext #ambient-date { font-family: var(--sans); color: #00ffff; font-size: 56px; }
+body.skin-teletext #ambient-summary { font-family: var(--sans); color: #00ff00; font-size: 44px; }
+body.skin-teletext #ambient-note { font-family: var(--sans); color: #ff00ff; }
+body.skin-teletext #toast { font-family: var(--sans); font-size: 36px; background: #0000ff; border: 0; color: #ffff00; }
+body.skin-teletext #build { font-family: var(--sans); }

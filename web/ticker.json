@@ -1,5 +1,6 @@
 {
-  "theme": "retro",
+  "_skins": "guide, seventies, teletext, surf, modern. This is the default; picking one on the TV (channel 22) overrides it there.",
+  "theme": "guide",
   "note": "I love you, Erica, with all of my heart.",
   "lines": [
     "Welcome home"

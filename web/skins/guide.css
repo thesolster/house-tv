@@ -1,0 +1,96 @@
+/* Guide skin: the late-80s cable guide channel. */
+
+body.skin-guide {
+  --bg: #0b0d3a;
+  --bg-2: #141866;
+  --panel: #1a1f7a;
+  --ink: #ffffff;
+  --ink-2: #c9d2ff;
+  --ink-3: #8f9bdc;
+  --accent: #ffd23f;
+  --accent-2: #ff5a36;
+  --line: rgba(255, 255, 255, 0.18);
+  --cell: #12166a;
+  --cell-focus: #2b33b8;
+  --serif: "Righteous", "Arial Black", sans-serif;
+  --sans: "VT323", "Courier New", monospace;
+  --pixel: "Press Start 2P", "Courier New", monospace;
+  --vcr: #7dff8a;
+  --clock-color: var(--vcr);
+  --stripe: linear-gradient(180deg, #ffd23f 0 20%, #ff9f1c 20% 40%, #f25c19 40% 60%, #c2341c 60% 80%, #7a2c12 80% 100%);
+}
+body.skin-guide, body.skin-guide #stage { background: var(--bg); }
+
+/* The glass */
+body.skin-guide #crt {
+  display: block; position: absolute; inset: 0; pointer-events: none; z-index: 50;
+  background:
+    repeating-linear-gradient(180deg, rgba(0,0,0,0) 0 2px, rgba(0,0,0,0.20) 2px 4px),
+    radial-gradient(ellipse at center, rgba(0,0,0,0) 58%, rgba(0,0,0,0.55) 100%);
+  border-radius: 48px / 40px;
+  box-shadow: inset 0 0 120px rgba(0,0,0,0.7), inset 0 0 0 14px #050616;
+  animation: flicker 6s infinite steps(1);
+}
+@keyframes flicker { 0%, 100% { opacity: 1; } 47% { opacity: 0.93; } 48% { opacity: 1; } 83% { opacity: 0.96; } }
+
+/* Preview window: a little TV inside the TV */
+body.skin-guide #preview { border: 6px solid #c9d2ff; border-radius: 28px; box-shadow: 8px 8px 0 #000; }
+body.skin-guide #pv-photo { filter: sepia(0.35) saturate(1.25) contrast(1.05); }
+body.skin-guide #pv-card { background: var(--stripe); }
+body.skin-guide #pv-card-kicker { font-family: var(--pixel); font-size: 18px; color: #0b0d3a; letter-spacing: 0.04em; }
+body.skin-guide #pv-card-title { font-family: var(--serif); font-weight: 400; color: #0b0d3a; }
+body.skin-guide #pv-banner { background: radial-gradient(circle at center, #2b33b8, #0b0d3a); }
+body.skin-guide #pv-ch { font-family: var(--sans); font-size: 52px; font-weight: 400; color: var(--vcr); text-shadow: 0 0 10px rgba(125,255,138,0.7), 2px 2px 0 #000; }
+body.skin-guide #pv-credit { font-family: var(--sans); font-size: 20px; }
+
+/* Info panel */
+body.skin-guide #clock { font-family: var(--sans); font-size: 92px; text-shadow: 0 0 12px rgba(125,255,138,0.55), 2px 0 0 rgba(255,0,80,0.35), -2px 0 0 rgba(0,180,255,0.35); }
+body.skin-guide #date { font-family: var(--sans); font-size: 30px; color: var(--vcr); text-transform: uppercase; }
+body.skin-guide #weather { font-family: var(--sans); font-size: 30px; text-transform: uppercase; }
+body.skin-guide .note { font-family: var(--serif); font-style: normal; color: #ff7aa2; text-shadow: 2px 2px 0 #3a0820; }
+body.skin-guide #note { font-size: 30px; }
+body.skin-guide #hl-kicker { font-family: var(--pixel); font-size: 15px; letter-spacing: 0.04em; }
+body.skin-guide #hl-title { font-family: var(--serif); font-weight: 400; font-size: 56px;
+  background: var(--stripe); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(3px 3px 0 #000); }
+body.skin-guide #hl-sub { font-family: var(--sans); font-size: 32px; }
+body.skin-guide #hl-hint { font-family: var(--sans); font-size: 26px; color: var(--vcr); }
+body.skin-guide #np { background: var(--panel); border: 3px solid #c9d2ff; border-radius: 0; }
+body.skin-guide #np-app { font-family: var(--pixel); font-size: 12px; letter-spacing: 0.04em; }
+body.skin-guide #np-title { font-family: var(--sans); font-size: 30px; font-weight: 400; }
+body.skin-guide #np-fill { background: var(--stripe); }
+body.skin-guide .remote-text { font-family: var(--sans); font-size: 24px; }
+
+/* Guide grid: blue cells, yellow channel numbers, white hairlines */
+body.skin-guide #guide-head { background: #c9d2ff; border-radius: 0; padding: 0 14px; }
+body.skin-guide .gh-left { font-family: var(--pixel); font-size: 14px; color: #0b0d3a; letter-spacing: 0.06em; }
+body.skin-guide .gh-right { font-family: var(--sans); font-size: 24px; color: #0b0d3a; }
+body.skin-guide #guide-window { border-radius: 0; border: 3px solid #c9d2ff; border-top: 0; }
+body.skin-guide .g-row { gap: 3px; padding: 0; border-bottom: 3px solid #c9d2ff; height: 76px; }
+body.skin-guide .g-chan { border-radius: 0; border-left: 0; background: #0b0d3a; }
+body.skin-guide .g-num { font-family: var(--sans); font-size: 44px; font-weight: 400; color: var(--accent); }
+body.skin-guide .g-name { font-family: var(--sans); font-size: 30px; font-weight: 400; text-transform: uppercase; }
+body.skin-guide .g-cells { gap: 3px; }
+body.skin-guide .g-cell { border-radius: 0; border: 0; background: var(--cell); }
+body.skin-guide .g-cell .t { font-family: var(--sans); font-size: 32px; font-weight: 400; }
+body.skin-guide .g-cell .s { font-family: var(--sans); font-size: 22px; color: var(--ink-3); }
+body.skin-guide .g-cell.now .t::before { color: var(--accent-2); }
+body.skin-guide .g-row.active .g-chan { background: #1a1f7a; }
+body.skin-guide .g-cell.focus { background: var(--accent); }
+body.skin-guide .g-cell.focus .t, body.skin-guide .g-cell.focus .s { color: #0b0d3a; }
+
+/* Ticker: the late news crawl */
+body.skin-guide #ticker { background: #000; border-top: 4px solid var(--accent); height: 80px; }
+body.skin-guide #ticker .tag { font-family: var(--pixel); font-size: 16px; color: #0b0d3a; background: var(--accent); letter-spacing: 0.06em; }
+body.skin-guide #ticker .strip { font-family: var(--sans); font-size: 40px; color: #fff; text-transform: uppercase; letter-spacing: 0.03em; }
+body.skin-guide #ticker .strip i { color: var(--accent); }
+
+/* Idle: blue VCR screen */
+body.skin-guide #ambient { background: radial-gradient(ellipse at center, #1430b8 0%, #0a1a6e 100%); }
+body.skin-guide #ambient-clock { font-family: var(--sans); font-size: 300px; color: var(--vcr); text-shadow: 0 0 24px rgba(125,255,138,0.6); }
+body.skin-guide #ambient-date, body.skin-guide #ambient-summary { font-family: var(--sans); color: #fff; text-transform: uppercase; }
+body.skin-guide #ambient-date { font-size: 56px; }
+body.skin-guide #ambient-summary { font-size: 44px; }
+body.skin-guide #ambient-note { font-size: 56px; }
+
+body.skin-guide #toast { font-family: var(--sans); font-size: 36px; background: #0a1a8a; border: 3px solid var(--accent); border-radius: 0; }
+body.skin-guide #build { font-family: var(--sans); }
