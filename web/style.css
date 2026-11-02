@@ -191,3 +191,8 @@ body.skin-surf #tune-bar { background: rgba(18, 52, 59, 0.92); border: 3px solid
 body.skin-surf .tb-left { background: #e8573c; color: #fff6e4; }
 body.skin-surf #tb-station, body.skin-surf #tb-show { font-family: var(--serif); font-weight: 400; }
 body.skin-surf #tb-town { color: #f6b73c; }
+
+/* Town + radio: the town station brings its own ticker, so ours steps aside */
+body.tune #ticker { display: none; }
+body.tune #preview { height: 1080px; }
+body.tune #tune-bar { bottom: 130px; }

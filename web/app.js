@@ -6,7 +6,7 @@
 (function () {
   "use strict";
 
-  var PAGE_VERSION = "page 23";
+  var PAGE_VERSION = "page 24";
   var SANTA_CRUZ = { lat: 36.9741, lon: -122.0308, tz: "America/Los_Angeles" };
   var TIDE_STATION = "9413745"; // NOAA, Santa Cruz
   var IDLE_MS = 5 * 60 * 1000;
@@ -531,7 +531,7 @@
     });
 
     // 99 Settings: how this TV looks and behaves. OK cycles each one; saved on this TV.
-    out.push({ num: "99", name: "Settings", color: "#ff7aa2", cells: settingCells() });
+    out.push({ num: String(88 + radioCfg.length), name: "Settings", color: "#ff7aa2", cells: settingCells() });
 
     // Keep focus on the same channel if it still exists
     var keepNum = rows[focus.r] ? rows[focus.r].num : null;
@@ -689,7 +689,7 @@
     setText("hl-title", c.title || c.t);
     setText("hl-sub", c.sub || c.s || "");
     var n = parseInt(row.num, 10);
-    var verb = n === 99 ? "change" : n === 95 ? "switch" : (n >= 88 && n < 99) ? "listen" : (n >= 20 && n <= 39) ? "open" : "watch";
+    var verb = row.name === "Settings" ? "change" : n === 95 ? "switch" : (n >= 88 && n < 99) ? "listen" : (n >= 20 && n <= 39) ? "open" : "watch";
     setText("hl-hint", c.act ? "OK ▸ " + verb : "");
     var chEl = document.getElementById("pv-ch");
     var chHtml = '<span class="ch-n">CHANNEL ' + parseInt(row.num, 10) + '</span><span class="ch-nm">' + esc(row.name.toUpperCase()) + "</span>";
