@@ -6,7 +6,7 @@
 (function () {
   "use strict";
 
-  var PAGE_VERSION = "page 19";
+  var PAGE_VERSION = "page 20";
   var SANTA_CRUZ = { lat: 36.9741, lon: -122.0308, tz: "America/Los_Angeles" };
   var TIDE_STATION = "9413745"; // NOAA, Santa Cruz
   var IDLE_MS = 5 * 60 * 1000;
@@ -499,40 +499,6 @@
     });
     out.push({ num: "03", name: "Santa Cruz", color: "#5bc4e3", cells: sc });
 
-    // 20+ Each app is its own channel: open it, plus what you watched there.
-    var history = json("history", {}).items || [];
-    var apps = sortApps(json("apps", []));
-    var watchedPkgs = {};
-    history.forEach(function (w) { watchedPkgs[w.pkg] = 1; });
-    var channelApps = apps.filter(function (a) { return PREFERRED.indexOf(a.pkg) >= 0 || watchedPkgs[a.pkg]; }).slice(0, 15);
-    var otherApps = apps.filter(function (a) { return channelApps.indexOf(a) < 0; });
-    channelApps.forEach(function (a, i) {
-      var cells = [];
-      var shows = byShow(history.filter(function (w) { return w.pkg === a.pkg; })).slice(0, 8);
-      shows.forEach(function (w) {
-        var show = w.subtitle || w.title, ep = w.subtitle ? w.title : "";
-        cells.push({ t: show, s: [ep, ago(w.at)].filter(Boolean).join(" · "), kicker: a.label + " · " + ago(w.at), title: show, sub: (ep ? ep + " · " : "") + "Opens " + a.label,
-          preview: appPreview(a.pkg, show, a.label),
-          act: function () {
-            var r = bridge.resume ? call("resume", w.pkg, "", "") : call("launch", w.pkg);
-            if (r === "resumed") toast("Picking up " + show);
-            else if (r === "app" || r === "ok") toast("Opening " + a.label + " · " + show + " is under Continue Watching");
-            else toast("Couldn't open " + a.label);
-          } });
-      });
-      // After your shows: open the app. With nothing yet, say how shows get here.
-      cells.push({ t: "Open " + a.label, s: shows.length ? "Everything else" : "App", now: !shows.length, kicker: "App", title: a.label, sub: "Opens " + a.label,
-        preview: appPreview(a.pkg, a.label), act: function () { launch(a); } });
-      if (!shows.length) cells.push({ t: "Your " + a.label + " shows", s: "Watch something on " + a.label + " and it shows up here", kicker: a.label,
-        title: "Nothing yet", sub: "Watch something on " + a.label + " for a minute and it shows up on this channel", preview: { type: "card", kicker: a.label, title: "Your shows go here" } });
-      out.push({ num: String(20 + i), name: a.label, color: "#c9d2ff", cells: cells });
-    });
-    if (otherApps.length) {
-      out.push({ num: "39", name: "More apps", color: "#c9d2ff", cells: otherApps.map(function (a) {
-        return { t: a.label, s: "App", kicker: "App", title: a.label, sub: "Opens " + a.label, preview: appPreview(a.pkg, a.label), act: function () { launch(a); } };
-      }) });
-    }
-
     // 88, 90 Local radio, numbered by frequency. OK plays the live stream; OK again stops it.
     var rs = json("radioStatus", {});
     radioCfg.forEach(function (cfg) {
@@ -554,15 +520,6 @@
         preview: { type: "card", kicker: cfg.name + " FM", title: "Playlist" }, act: function () { call("view", cfg.playlist); } });
       out.push({ num: cfg.num, name: cfg.name, color: "#7dff8a", cells: cells });
     });
-
-    // 95 Inputs
-    var inputs = json("inputs", []).map(function (i) {
-      return { t: i.label, s: "Input", kicker: "Input", title: i.label, sub: "Switch the TV to " + i.label, preview: { type: "card", kicker: "Input", title: i.label },
-        act: function () { var r = call("openInput", i.id); if (r !== "ok") toast("Couldn't switch to " + i.label + " (" + r + ")"); } };
-    });
-    inputs.push({ t: "Fire TV settings", s: "Network, sound, display", kicker: "Fire TV", title: "Fire TV settings", sub: "Network, sound, display, apps", preview: { type: "card", kicker: "Fire TV", title: "Settings" },
-      act: function () { if (call("settings") !== "ok") toast("Couldn't open settings"); } });
-    out.push({ num: "95", name: "Inputs", color: "#c9d2ff", cells: inputs });
 
     // 99 Settings: how this TV looks and behaves. OK cycles each one; saved on this TV.
     out.push({ num: "99", name: "Settings", color: "#ff7aa2", cells: settingCells() });
@@ -773,6 +730,80 @@
     _showPreview(p);
   };
 
+  /* ---------- the app drawer: ◀ past the first show on any channel ---------- */
+
+  var drawer = { open: false, items: [], i: 0 };
+
+  function drawerItems() {
+    // Most-used first (the TV's recent list), then the usual suspects, then A-Z.
+    var recentOrder = json("recent", []).map(function (a) { return a.pkg; });
+    var apps = sortApps(json("apps", [])).sort(function (a, b) {
+      var ra = recentOrder.indexOf(a.pkg), rb = recentOrder.indexOf(b.pkg);
+      if (ra >= 0 || rb >= 0) return (ra < 0 ? 999 : ra) - (rb < 0 ? 999 : rb);
+      return 0;
+    });
+    var items = apps.map(function (a) {
+      return { kind: "app", label: a.label, art: art(a.pkg), act: function () { launch(a); } };
+    });
+    json("inputs", []).forEach(function (inp) {
+      items.push({ kind: "input", label: inp.label, act: function () { var r = call("openInput", inp.id); if (r !== "ok") toast("Couldn't switch to " + inp.label); } });
+    });
+    items.push({ kind: "input", label: "Fire TV settings", act: function () { if (call("settings") !== "ok") toast("Couldn't open settings"); } });
+    return items;
+  }
+
+  function openDrawer() {
+    drawer.items = drawerItems();
+    drawer.i = 0;
+    drawer.open = true;
+    renderDrawer();
+    document.body.classList.add("drawer-open");
+  }
+  function closeDrawer() {
+    drawer.open = false;
+    document.body.classList.remove("drawer-open");
+  }
+  function renderDrawer() {
+    var el = document.getElementById("drawer-grid");
+    var html = "", sawInput = false;
+    drawer.items.forEach(function (it, i) {
+      if (it.kind === "input" && !sawInput) { sawInput = true; html += '<div class="dr-label">Inputs</div>'; }
+      var img = it.art && it.art.indexOf("banner:") === 0 ? it.art.slice(7) : it.art && it.art.indexOf("icon:") === 0 ? it.art.slice(5) : "";
+      var banner = it.art && it.art.indexOf("banner:") === 0;
+      html += '<div class="dr-item ' + it.kind + (banner ? " banner" : "") + (i === drawer.i ? " focus" : "") + '" data-i="' + i + '">' +
+        (img ? '<img src="' + img + '" alt="">' : "") + (banner ? "" : '<span>' + esc(it.label) + "</span>") + "</div>";
+    });
+    el.innerHTML = html;
+    var f = el.querySelector(".dr-item.focus");
+    if (f) {
+      // keep the focused tile in view
+      var top = f.offsetTop, h = f.offsetHeight, view = el.parentNode.clientHeight;
+      var shift = Math.max(0, top + h - view + 40);
+      el.style.transform = "translateY(" + (-shift) + "px)";
+    }
+    var it = drawer.items[drawer.i];
+    setText("drawer-name", it ? it.label : "");
+  }
+  // Arrow moves follow where the tiles actually sit (Inputs start on their own row).
+  function drawerMove(dx, dy) {
+    var els = Array.prototype.slice.call(document.querySelectorAll("#drawer-grid .dr-item"));
+    var cur = els[drawer.i];
+    if (!cur) return false;
+    var x = cur.offsetLeft, y = cur.offsetTop, best = -1, bestD = Infinity;
+    els.forEach(function (el, i) {
+      if (i === drawer.i) return;
+      var ex = el.offsetLeft, ey = el.offsetTop;
+      if (dx && (ey !== y || (dx > 0 ? ex <= x : ex >= x))) return;
+      if (dy && (dy > 0 ? ey <= y : ey >= y)) return;
+      var d = dx ? Math.abs(ex - x) : Math.abs(ey - y) * 10 + Math.abs(ex - x);
+      if (d < bestD) { bestD = d; best = i; }
+    });
+    if (best < 0) return false;
+    drawer.i = best;
+    renderDrawer();
+    return true;
+  }
+
   /* ---------- keys ---------- */
 
   function move(dr, dc) {
@@ -799,8 +830,25 @@
 
   document.addEventListener("keydown", function (e) {
     if (wake()) { e.preventDefault(); return; }
-    switch (e.key || e.keyCode) {
-      case "ArrowLeft": case 37: move(0, -1); break;
+    var k = e.key || e.keyCode;
+    if (drawer.open) {
+      switch (k) {
+        case "ArrowLeft": case 37: drawerMove(-1, 0); break;
+        case "ArrowRight": case 39: if (!drawerMove(1, 0)) closeDrawer(); break;   // past the right edge: back to the guide
+        case "ArrowUp": case 38: drawerMove(0, -1); break;
+        case "ArrowDown": case 40: drawerMove(0, 1); break;
+        case "Enter": case 13: case " ": var it = drawer.items[drawer.i]; closeDrawer(); if (it) it.act(); break;
+        case "Escape": case "Backspace": case "GoBack": case 27: case 8: closeDrawer(); break;
+        default: return;
+      }
+      e.preventDefault();
+      return;
+    }
+    switch (k) {
+      case "ArrowLeft": case 37:
+        if (focus.c === 0 && !viewMode) openDrawer();   // ◀ past the first show: apps
+        else move(0, -1);
+        break;
       case "ArrowRight": case 39: move(0, 1); break;
       case "ArrowUp": case 38:
         if (!viewMode && focus.r === 0) setView(true);   // up from the top row: step into the picture
@@ -838,10 +886,11 @@
   window.houseSkin = function (id) { if (SKINS.some(function (k) { return k.id === id; })) pickSkin(id); };
   window.houseBack = function () {
     if (wake()) return;
+    if (drawer.open) { closeDrawer(); return; }
     if (viewMode) { setView(false); return; }
     focus.r = 0; focus.c = 0; paint();
   };
-  window.houseHome = function () { wake(); setView(false); focus.r = 0; focus.c = 0; paint(); };
+  window.houseHome = function () { wake(); closeDrawer(); setView(false); focus.r = 0; focus.c = 0; paint(); };
   window.houseResume = function () { wake(); artCache = {}; buildGuide(); tick(); refreshNowPlaying(); };
 
   /* ---------- helpers ---------- */
