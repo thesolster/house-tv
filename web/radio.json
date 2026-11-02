@@ -1,5 +1,5 @@
 {
-  "_note": "Channel 88 Radio. One stop per station, in this order. 'streams' are known addresses, tried first. 'find' looks the station up in the radio-browser.info directory when it's played, for stations that don't publish their stream address. 'code' matches Regular's on-air feed (KZSC, KSQD).",
+  "_note": "Radio channels 88 and up, one per station, numbered in this order. 'streams' are known addresses, tried first. 'find' looks the station up in the radio-browser.info directory when it's played, for stations that don't publish their stream address. 'code' matches Regular's on-air feed (KZSC, KSQD).",
   "stations": [
     { "code": "KZSC", "name": "KZSC 88.1", "area": "Santa Cruz", "about": "UC Santa Cruz community radio", "playlist": "https://spinitron.com/KZSC/",
       "streams": ["https://kzscfms1-geckohost.radioca.st/kzschigh", "http://kzscfms1-geckohost.radioca.st/kzschigh"], "find": "KZSC" },

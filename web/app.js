@@ -6,7 +6,7 @@
 (function () {
   "use strict";
 
-  var PAGE_VERSION = "page 22";
+  var PAGE_VERSION = "page 23";
   var SANTA_CRUZ = { lat: 36.9741, lon: -122.0308, tz: "America/Los_Angeles" };
   var TIDE_STATION = "9413745"; // NOAA, Santa Cruz
   var IDLE_MS = 5 * 60 * 1000;
@@ -503,28 +503,32 @@
     });
     out.push({ num: "03", name: "Santa Cruz", color: "#5bc4e3", cells: sc });
 
-    // 88 Radio: every local station in one channel. ◀ ▶ moves between them; OK plays, OK again stops.
+    // 88 and up: one channel per radio station, in radio.json order.
+    // OK plays (OK again stops). Each row also has "Town + radio" and, where Regular knows it, what's next.
     var rs = json("radioStatus", {});
     var radioOn = rs.state === "playing" || rs.state === "connecting";
-    var radioCells = radioCfg.map(function (cfg) {
+    radioCfg.forEach(function (cfg, i) {
       var live = town.stations.filter(function (r) { return r.station === cfg.code; })[0] || {};
       var on = live.on || {}, next = live.next || {};
       var playing = radioOn && rs.station === cfg.name;
-      var showLine = on.title ? on.title + (on.host ? " with " + on.host : "") + (on.until ? " · until " + on.until : "") : "";
-      return {
-        t: (playing ? "■ " : "") + cfg.name, s: playing ? (rs.state === "playing" ? "Playing now · OK to stop" : "Tuning in…") : (showLine || cfg.area + " · " + cfg.about),
-        now: playing, kicker: cfg.area + " · " + (playing ? (rs.state === "playing" ? "Playing now" : "Tuning in…") : "Radio"),
-        title: on.title || cfg.name, sub: on.title ? cfg.name + (on.host ? " · with " + on.host : "") + (next.title ? " · next: " + next.title + (next.at ? " at " + next.at : "") : "") : cfg.about,
-        preview: { type: "card", kicker: cfg.name + " · " + cfg.area, title: on.title || cfg.about },
-        act: function () { toggleRadio(cfg); }
-      };
+      var cardTitle = on.title || cfg.about;
+      var cells = [{
+        t: playing ? "■ Stop" : "▶ Listen" + (on.title ? ": " + on.title : ""),
+        s: playing ? (rs.state === "playing" ? "Playing now" : "Tuning in…") : on.title ? [on.host ? "with " + on.host : "", on.until ? "until " + on.until : ""].filter(Boolean).join(" · ") : cfg.area + " · " + cfg.about,
+        now: true, kicker: cfg.area + " · " + (playing ? (rs.state === "playing" ? "Playing now" : "Tuning in…") : "Radio"),
+        title: on.title || cfg.name, sub: on.title ? cfg.name + (on.host ? " · with " + on.host : "") : cfg.about,
+        preview: { type: "card", kicker: cfg.name + " · " + cfg.area, title: cardTitle }, act: function () { toggleRadio(cfg); }
+      }, {
+        t: "Town + radio", s: "The town on screen, " + cfg.name + " playing", kicker: "Regular TV + " + cfg.name, title: "Town + radio",
+        sub: "Watch the town with " + cfg.name + " on. ▲ ▼ town · ◀ ▶ station",
+        preview: livePreview(STATION_PAGE, (town.photos[0] || {}).url), act: function () { enterTune(cfg, 0); }
+      }];
+      if (next.title) cells.push({ t: "Next: " + next.title, s: next.at ? "at " + next.at : "", kicker: cfg.name + " · Up next", title: next.title, sub: next.at ? "at " + next.at : "",
+        preview: { type: "card", kicker: cfg.name + " · Up next", title: next.title }, act: function () { toggleRadio(cfg); } });
+      if (cfg.playlist) cells.push({ t: "Playlist", s: "What's been playing", kicker: cfg.name, title: "Playlist", sub: "What's been playing on " + cfg.name,
+        preview: { type: "card", kicker: cfg.name, title: "Playlist" }, act: function () { call("view", cfg.playlist); } });
+      out.push({ num: String(88 + i), name: cfg.name, color: playing ? "#ff5a36" : "#7dff8a", cells: cells });
     });
-    if (radioOn) radioCells.unshift({ t: "▶ Watch the town", s: "with " + rs.station + " playing", now: true, kicker: "Town + radio", title: "Watch the town",
-      sub: "The town station on screen, " + rs.station + " playing. ▲ ▼ town · ◀ ▶ station",
-      preview: livePreview(STATION_PAGE, (town.photos[0] || {}).url), act: function () { enterTune(radioByName(rs.station), 0); } });
-    if (radioOn) radioCells.unshift({ t: "■ Radio off", s: rs.station + " is on", kicker: "Radio", title: "Radio off", sub: "Stop " + rs.station,
-      preview: { type: "card", kicker: "Radio", title: "Off" }, act: function () { call("radioStop"); toast("Radio off"); setTimeout(buildGuide, 400); setTimeout(refreshNowPlaying, 600); } });
-    if (radioCells.length) out.push({ num: "88", name: "Radio", color: "#7dff8a", cells: radioCells });
 
     // 99 Settings: how this TV looks and behaves. OK cycles each one; saved on this TV.
     out.push({ num: "99", name: "Settings", color: "#ff7aa2", cells: settingCells() });
@@ -685,7 +689,7 @@
     setText("hl-title", c.title || c.t);
     setText("hl-sub", c.sub || c.s || "");
     var n = parseInt(row.num, 10);
-    var verb = n === 99 ? "change" : n === 95 ? "switch" : n === 88 ? "listen" : (n >= 20 && n <= 39) ? "open" : "watch";
+    var verb = n === 99 ? "change" : n === 95 ? "switch" : (n >= 88 && n < 99) ? "listen" : (n >= 20 && n <= 39) ? "open" : "watch";
     setText("hl-hint", c.act ? "OK ▸ " + verb : "");
     var chEl = document.getElementById("pv-ch");
     var chHtml = '<span class="ch-n">CHANNEL ' + parseInt(row.num, 10) + '</span><span class="ch-nm">' + esc(row.name.toUpperCase()) + "</span>";
