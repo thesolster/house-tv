@@ -101,3 +101,8 @@ body.idle #ambient { opacity: 1; }
   padding: 18px 30px; border-radius: 14px; font-size: 26px; opacity: 0; transition: opacity .3s, transform .3s; z-index: 40; }
 #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 #crt { display: none; }
+
+/* Station ID in the corner of the preview: CHANNEL 9  COMMUNITY */
+#pv-ch { display: flex; align-items: baseline; gap: 18px; left: 26px; top: 16px; z-index: 2; }
+#pv-ch .ch-n { font-size: 64px; line-height: 1; letter-spacing: 0.02em; }
+#pv-ch .ch-nm { font-size: 40px; line-height: 1; letter-spacing: 0.06em; }

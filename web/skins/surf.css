@@ -63,3 +63,4 @@ body.skin-surf #ambient-clock { font-family: var(--serif); color: #fff6e4; text-
 body.skin-surf #ambient-date, body.skin-surf #ambient-summary { color: #fff6e4; }
 body.skin-surf #ambient-note { color: #fff6e4; }
 body.skin-surf #toast { background: #12343b; color: #f3e6cc; border: 3px solid #e8573c; }
+body.skin-surf #pv-ch .ch-nm { color: #12343b; text-shadow: 2px 2px 0 #f6b73c; }

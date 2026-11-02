@@ -65,3 +65,4 @@ body.skin-seventies #ticker .strip i { color: #ffb000; }
 body.skin-seventies #ambient { background: var(--wood); }
 body.skin-seventies #ambient-clock { font-family: var(--serif); color: #ffd23f; text-shadow: 8px 8px 0 #7a2c12; }
 body.skin-seventies #toast { background: #1a0d04; border: 3px solid #ffb000; border-radius: 22px; }
+body.skin-seventies #pv-ch .ch-nm { color: #fff3c4; }

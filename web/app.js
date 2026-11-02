@@ -6,7 +6,7 @@
 (function () {
   "use strict";
 
-  var PAGE_VERSION = "page 14";
+  var PAGE_VERSION = "page 15";
   var SANTA_CRUZ = { lat: 36.9741, lon: -122.0308, tz: "America/Los_Angeles" };
   var TIDE_STATION = "9413745"; // NOAA, Santa Cruz
   var IDLE_MS = 5 * 60 * 1000;
@@ -431,7 +431,7 @@
 
     // 03 Santa Cruz: the town station and the cams
     var photo0 = town.photos[0] || {};
-    var sc = [{ t: "Santa Cruz right now", s: "Regular TV · all channels", now: true, kicker: "Regular TV · Channel 1", title: "Santa Cruz right now",
+    var sc = [{ t: "Santa Cruz right now", s: "Regular TV · all channels", now: true, kicker: "Regular TV · all channels", title: "Santa Cruz right now",
       sub: "The whole town's channels, mixed by time of day", preview: livePreview(STATION_PAGE, photo0.url, photo0.credit), act: function () { watchChannel(0); } }];
     liveItems.forEach(function (it) {
       sc.push({ t: it.title, s: it.sub || "Live cam", now: true, kicker: "Live", title: it.title, sub: it.sub || "",
@@ -563,7 +563,9 @@
     setText("hl-title", c.title || c.t);
     setText("hl-sub", c.sub || c.s || "");
     setText("hl-hint", c.act ? "OK ▸ " + (row.num === "20" ? "open" : row.num === "21" ? "switch" : row.num === "22" ? "use this skin" : "watch") : "");
-    setText("pv-ch", "CH " + row.num);
+    var chEl = document.getElementById("pv-ch");
+    var chHtml = '<span class="ch-n">CHANNEL ' + parseInt(row.num, 10) + '</span><span class="ch-nm">' + esc(row.name.toUpperCase()) + "</span>";
+    if (chEl.innerHTML !== chHtml) chEl.innerHTML = chHtml;
     renderStrip(row);
     showPreview(c.preview || { type: "card", kicker: row.name, title: c.title || c.t });
   }

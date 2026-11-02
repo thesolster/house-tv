@@ -94,3 +94,5 @@ body.skin-guide #ambient-note { font-size: 56px; }
 
 body.skin-guide #toast { font-family: var(--sans); font-size: 36px; background: #0a1a8a; border: 3px solid var(--accent); border-radius: 0; }
 body.skin-guide #build { font-family: var(--sans); }
+body.skin-guide #pv-ch .ch-nm { color: #fff; text-shadow: 0 0 8px rgba(125,255,138,0.5), 3px 3px 0 #000; }
+body.skin-guide #pv-ch .ch-n { text-shadow: 0 0 10px rgba(125,255,138,0.6), 3px 3px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000; }

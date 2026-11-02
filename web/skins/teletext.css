@@ -76,3 +76,6 @@ body.skin-teletext #ambient-summary { font-family: var(--sans); color: #00ff00; 
 body.skin-teletext #ambient-note { font-family: var(--sans); color: #ff00ff; }
 body.skin-teletext #toast { font-family: var(--sans); font-size: 36px; background: #0000ff; border: 0; color: #ffff00; }
 body.skin-teletext #build { font-family: var(--sans); }
+body.skin-teletext #pv-ch { background: none; padding: 0; }
+body.skin-teletext #pv-ch .ch-n { background: #ff0000; color: #fff; padding: 4px 12px; }
+body.skin-teletext #pv-ch .ch-nm { color: #ffff00; text-shadow: 3px 3px 0 #000; }

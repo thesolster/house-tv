@@ -43,3 +43,8 @@ body.skin-surf #view-strip .vs-cell { background: #fff6e4; border-color: rgba(18
 body.skin-surf #view-strip .vs-cell.on { background: #0f6e7a; border-color: #12343b; }
 body.skin-surf #view-strip .vs-cell.on .t, body.skin-surf #view-strip .vs-cell.on .s { color: #fff6e4; }
 body.skin-surf #view-strip .vs-chan { background: #12343b; color: #f6b73c; }
+
+/* Bigger station ID when the picture is big */
+body.view #pv-ch { left: 36px; top: 26px; gap: 24px; }
+body.view #pv-ch .ch-n { font-size: 104px; }
+body.view #pv-ch .ch-nm { font-size: 60px; }
