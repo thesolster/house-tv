@@ -48,6 +48,7 @@ public class RemoteService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
+        Radio.init(this);
         goForeground();
         running = true;
         new Thread(this::serve, "house-remote").start();

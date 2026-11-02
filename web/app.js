@@ -6,7 +6,7 @@
 (function () {
   "use strict";
 
-  var PAGE_VERSION = "page 27";
+  var PAGE_VERSION = "page 28";
   var SANTA_CRUZ = { lat: 36.9741, lon: -122.0308, tz: "America/Los_Angeles" };
   var TIDE_STATION = "9413745"; // NOAA, Santa Cruz
   var IDLE_MS = 5 * 60 * 1000;
@@ -383,14 +383,19 @@
     np = json("nowPlaying", {});
     var box = document.getElementById("np");
     var rs = json("radioStatus", {});
-    if (rs.state === "playing" || rs.state === "connecting") {
-      var live = town.stations.filter(function (r) { return rs.station && rs.station.indexOf(r.station) === 0; })[0] || {};
+    if (rs.state === "playing" || rs.state === "connecting" || rs.state === "reconnecting") {
+      // The radio player: station, show, the song on air, and little dancing bars.
+      var cfg = radioByName(rs.station), pg = cfg ? program(cfg) : {};
       box.classList.remove("hidden");
-      setText("np-app", (rs.state === "playing" ? "On the radio · " : "Tuning in · ") + rs.station);
-      setText("np-title", (live.on && live.on.title) || "Live");
-      document.getElementById("np-fill").style.width = "100%";
+      box.classList.add("radio");
+      box.classList.toggle("tuning", rs.state !== "playing");
+      setText("np-app", (rs.state === "playing" ? "On the radio · " : rs.state === "reconnecting" ? "Reconnecting · " : "Tuning in · ") + rs.station);
+      setText("np-title", pg.show ? pg.show + (pg.host ? " · with " + pg.host : "") : cfg ? cfg.about : "Live");
+      setText("np-song", pg.song ? "♪ " + pg.song : pg.until ? "until " + pg.until : "");
+      lastRadioState = rs.state;
       return;
     }
+    box.classList.remove("radio", "tuning");
     if (rs.state === "failed" && lastRadioState !== "failed") toast("Couldn't tune in " + rs.station + " (" + (rs.error || "no stream") + ")");
     lastRadioState = rs.state;
     if (!np.title && !np.app) { box.classList.add("hidden"); return; }
@@ -523,7 +528,7 @@
     // 88 and up: one channel per radio station, in radio.json order.
     // OK plays (OK again stops). Each row also has "Town + radio" and, where Regular knows it, what's next.
     var rs = json("radioStatus", {});
-    var radioOn = rs.state === "playing" || rs.state === "connecting";
+    var radioOn = rs.state === "playing" || rs.state === "connecting" || rs.state === "reconnecting";
     radioCfg.forEach(function (cfg, i) {
       var pg = program(cfg);
       var playing = radioOn && rs.station === cfg.name;
@@ -589,7 +594,7 @@
   function toggleRadio(cfg) {
     if (!bridge.radioPlay) { toast("Radio needs the newest app update"); return; }
     var rs = json("radioStatus", {});
-    if (rs.station === cfg.name && (rs.state === "playing" || rs.state === "connecting")) {
+    if (rs.station === cfg.name && (rs.state === "playing" || rs.state === "connecting" || rs.state === "reconnecting")) {
       call("radioStop");
       toast(cfg.name + " off");
       setTimeout(buildGuide, 400);
@@ -739,11 +744,12 @@
   /* ---------- Town + radio: the town on screen, a radio station underneath ---------- */
 
   var tune = { on: false, ch: 0, barTimer: null };
+  function radioPlaying() { var s = json("radioStatus", {}).state; return s === "playing" || s === "connecting" || s === "reconnecting"; }
   function radioByName(name) { return radioCfg.filter(function (c) { return c.name === name; })[0]; }
   function radioStation() {
     if (tune.on && tune.picked) return tune.picked;   // the one you just flipped to, while it tunes in
     var rs = json("radioStatus", {});
-    if ((rs.state === "playing" || rs.state === "connecting") && radioByName(rs.station)) return radioByName(rs.station);
+    if ((rs.state === "playing" || rs.state === "connecting" || rs.state === "reconnecting") && radioByName(rs.station)) return radioByName(rs.station);
     var code = pref("radio", "");
     return radioCfg.filter(function (c) { return c.code === code; })[0] || radioCfg[0];
   }
@@ -752,7 +758,7 @@
   function enterTune(cfg, ch) {
     var station = cfg || radioStation();
     var rs = json("radioStatus", {});
-    var playing = (rs.state === "playing" || rs.state === "connecting") && station && rs.station === station.name;
+    var playing = (rs.state === "playing" || rs.state === "connecting" || rs.state === "reconnecting") && station && rs.station === station.name;
     if (station && !playing) toggleRadio(station);
     tune.on = true;
     tune.picked = station;
@@ -788,7 +794,7 @@
     do { idx = (idx + dir + radioCfg.length) % radioCfg.length; next = radioCfg[idx]; } while (next.soon && ++tries < radioCfg.length);
     tune.picked = next;
     var rs = json("radioStatus", {});
-    if (!(rs.station === next.name && (rs.state === "playing" || rs.state === "connecting"))) toggleRadio(next);
+    if (!(rs.station === next.name && (rs.state === "playing" || rs.state === "connecting" || rs.state === "reconnecting"))) toggleRadio(next);
     flashTune(next.name);
     renderTuneBar(next);
   }
@@ -810,7 +816,7 @@
     var st = forced || radioStation();
     var rs = json("radioStatus", {});
     var pg = st ? program(st) : {};
-    var state = rs.state === "playing" && st && rs.station === st.name ? "On the radio" : rs.state === "failed" ? "Couldn't tune in" : "Tuning in";
+    var state = rs.state === "playing" && st && rs.station === st.name ? "On the radio" : rs.state === "failed" ? "Couldn't tune in" : rs.state === "reconnecting" ? "Reconnecting" : "Tuning in";
     setText("tb-kicker", state === "On the radio" ? "" : state);
     setText("tb-station", st ? st.name : "Radio");
     setText("tb-show", pg.song ? (pg.show ? pg.show + " · " : "") + "♪ " + pg.song : pg.show || (st ? st.area : ""));
@@ -1027,10 +1033,14 @@
     clearTimeout(idleTimer);
     clearTimeout(stationTimer);
     var idle = pref("idle", "town");
-    if (idle !== "off") idleTimer = setTimeout(function () { document.body.classList.add("idle"); }, IDLE_MS);
+    if (idle !== "off") idleTimer = setTimeout(function () {
+      // Radio on: don't hide it behind the clock. Put the town up with the station playing.
+      if (radioPlaying()) { if (!tune.on) enterTune(null, 0); return; }
+      document.body.classList.add("idle");
+    }, IDLE_MS);
     if (inShell && (idle === "town" || idle === "radio") && !tune.on) {
       stationTimer = setTimeout(function () {
-        if (json("nowPlaying", {}).state === "playing") return;
+        if (json("nowPlaying", {}).state === "playing" || radioPlaying()) return;
         if (idle === "radio") { document.body.classList.remove("idle"); enterTune(null, 0); }
         else call("view", STATION_PAGE);
       }, STATION_AFTER_MS);
