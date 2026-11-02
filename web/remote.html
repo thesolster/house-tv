@@ -101,10 +101,26 @@
     }).catch(function (e) { toast(e.message || "TV didn't answer"); });
   }
 
+  var RB = "https://de1.api.radio-browser.info";
   document.addEventListener("click", function (e) {
     var b = e.target.closest("[data-cmd]");
     if (!b) return;
-    send(JSON.parse(b.getAttribute("data-cmd")), b.getAttribute("data-label"));
+    var cmd = JSON.parse(b.getAttribute("data-cmd")), find = b.getAttribute("data-find");
+    if (cmd.do === "radio" && find) {
+      // Look the station up in radio-browser.info and add what it finds to the known streams.
+      fetch(RB + "/json/stations/search?name=" + encodeURIComponent(find) + "&countrycode=US&hidebroken=true&order=votes&reverse=true&limit=8")
+        .then(function (r) { return r.json(); }).then(function (list) {
+          (list || []).forEach(function (st) {
+            var u = st.url_resolved || st.url;
+            if (u && (st.name || "").toUpperCase().indexOf(find.toUpperCase()) >= 0 && cmd.urls.indexOf(u) < 0) cmd.urls.push(u);
+          });
+        }).catch(function () {}).then(function () {
+          if (!cmd.urls.length) { toast("Couldn't find a stream for " + cmd.station); return; }
+          send(cmd, b.getAttribute("data-label"));
+        });
+      return;
+    }
+    send(cmd, b.getAttribute("data-label"));
   });
 
   function button(name, sub, cmd, cls) {
@@ -161,7 +177,11 @@
   function loadSkinsAndRadio() {
     fillGrid("skins", SKINS.map(function (k) { return button(k[1], "", { do: "skin", id: k[0] }); }));
     fetch("https://house-tv.vercel.app/radio.json", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (j) {
-      var btns = (j.stations || []).map(function (st) { return button(st.name, "Channel " + st.num, { do: "radio", station: st.name, urls: st.streams || [] }); });
+      var btns = (j.stations || []).map(function (st) {
+        var b = button(st.name, st.area, { do: "radio", station: st.name, urls: st.streams || [] });
+        if (st.find) b.setAttribute("data-find", st.find);
+        return b;
+      });
       btns.push(button("Radio off", "", { do: "radioStop" }));
       fillGrid("radio", btns);
     }).catch(function () {});

@@ -6,7 +6,7 @@
 (function () {
   "use strict";
 
-  var PAGE_VERSION = "page 20";
+  var PAGE_VERSION = "page 21";
   var SANTA_CRUZ = { lat: 36.9741, lon: -122.0308, tz: "America/Los_Angeles" };
   var TIDE_STATION = "9413745"; // NOAA, Santa Cruz
   var IDLE_MS = 5 * 60 * 1000;
@@ -499,27 +499,25 @@
     });
     out.push({ num: "03", name: "Santa Cruz", color: "#5bc4e3", cells: sc });
 
-    // 88, 90 Local radio, numbered by frequency. OK plays the live stream; OK again stops it.
+    // 88 Radio: every local station in one channel. ◀ ▶ moves between them; OK plays, OK again stops.
     var rs = json("radioStatus", {});
-    radioCfg.forEach(function (cfg) {
+    var radioOn = rs.state === "playing" || rs.state === "connecting";
+    var radioCells = radioCfg.map(function (cfg) {
       var live = town.stations.filter(function (r) { return r.station === cfg.code; })[0] || {};
       var on = live.on || {}, next = live.next || {};
-      var playing = rs.station === cfg.name && (rs.state === "playing" || rs.state === "connecting");
-      var nowTitle = on.title || cfg.about;
-      var listen = {
-        t: (playing ? "■ Stop " : "▶ Listen: ") + nowTitle, s: [on.host, on.until ? "until " + on.until : ""].filter(Boolean).join(" · ") || cfg.about, now: true,
-        kicker: cfg.name + " FM · " + (playing ? (rs.state === "playing" ? "Playing now" : "Tuning in…") : "On the air"), title: nowTitle,
-        sub: [on.host ? "with " + on.host : "", on.until ? "until " + on.until : ""].filter(Boolean).join(" · ") || cfg.about,
-        preview: { type: "card", kicker: cfg.name + " FM · On the air", title: nowTitle },
+      var playing = radioOn && rs.station === cfg.name;
+      var showLine = on.title ? on.title + (on.host ? " with " + on.host : "") + (on.until ? " · until " + on.until : "") : "";
+      return {
+        t: (playing ? "■ " : "") + cfg.name, s: playing ? (rs.state === "playing" ? "Playing now · OK to stop" : "Tuning in…") : (showLine || cfg.area + " · " + cfg.about),
+        now: playing, kicker: cfg.area + " · " + (playing ? (rs.state === "playing" ? "Playing now" : "Tuning in…") : "Radio"),
+        title: on.title || cfg.name, sub: on.title ? cfg.name + (on.host ? " · with " + on.host : "") + (next.title ? " · next: " + next.title + (next.at ? " at " + next.at : "") : "") : cfg.about,
+        preview: { type: "card", kicker: cfg.name + " · " + cfg.area, title: on.title || cfg.about },
         act: function () { toggleRadio(cfg); }
       };
-      var cells = [listen];
-      if (next.title) cells.push({ t: "Next: " + next.title, s: next.at || "", kicker: cfg.name + " FM · Up next", title: next.title, sub: next.at ? "at " + next.at : "",
-        preview: { type: "card", kicker: cfg.name + " FM · Up next", title: next.title }, act: function () { toggleRadio(cfg); } });
-      cells.push({ t: "Playlist", s: "What's been playing", kicker: cfg.name + " FM", title: "Playlist", sub: "What's been playing on " + cfg.name,
-        preview: { type: "card", kicker: cfg.name + " FM", title: "Playlist" }, act: function () { call("view", cfg.playlist); } });
-      out.push({ num: cfg.num, name: cfg.name, color: "#7dff8a", cells: cells });
     });
+    if (radioOn) radioCells.unshift({ t: "■ Radio off", s: rs.station + " is on", kicker: "Radio", title: "Radio off", sub: "Stop " + rs.station,
+      preview: { type: "card", kicker: "Radio", title: "Off" }, act: function () { call("radioStop"); toast("Radio off"); setTimeout(buildGuide, 400); setTimeout(refreshNowPlaying, 600); } });
+    if (radioCells.length) out.push({ num: "88", name: "Radio", color: "#7dff8a", cells: radioCells });
 
     // 99 Settings: how this TV looks and behaves. OK cycles each one; saved on this TV.
     out.push({ num: "99", name: "Settings", color: "#ff7aa2", cells: settingCells() });
@@ -535,18 +533,40 @@
 
   function launch(a) { if (call("launch", a.pkg) !== "ok") toast("Couldn't open " + a.label); }
 
+  // Stations that don't publish a stream get looked up in the radio-browser.info directory.
+  var RB = ["https://de1.api.radio-browser.info", "https://nl1.api.radio-browser.info", "https://at1.api.radio-browser.info"];
+  var foundStreams = {};
+  function findStreams(cfg) {
+    if (!cfg.find) return Promise.resolve([]);
+    if (foundStreams[cfg.code]) return Promise.resolve(foundStreams[cfg.code]);
+    var q = "/json/stations/search?name=" + encodeURIComponent(cfg.find) + "&countrycode=US&hidebroken=true&order=votes&reverse=true&limit=8";
+    return firstJSON(RB.map(function (b) { return b + q; })).then(function (list) {
+      var want = cfg.find.toUpperCase();
+      var urls = (list || []).filter(function (st) { return (st.name || "").toUpperCase().indexOf(want) >= 0 && st.lastcheckok !== 0; })
+        .map(function (st) { return st.url_resolved || st.url; }).filter(Boolean);
+      foundStreams[cfg.code] = urls;
+      return urls;
+    }).catch(function () { return []; });
+  }
+
   function toggleRadio(cfg) {
     if (!bridge.radioPlay) { toast("Radio needs the newest app update"); return; }
     var rs = json("radioStatus", {});
     if (rs.station === cfg.name && (rs.state === "playing" || rs.state === "connecting")) {
       call("radioStop");
       toast(cfg.name + " off");
-    } else {
-      call("radioPlay", cfg.name, JSON.stringify(cfg.streams || []));
-      toast("Tuning in " + cfg.name + "…");
+      setTimeout(buildGuide, 400);
+      return;
     }
-    setTimeout(buildGuide, 400);
-    setTimeout(function () { buildGuide(); refreshNowPlaying(); }, 4000);
+    toast("Tuning in " + cfg.name + "…");
+    findStreams(cfg).then(function (extra) {
+      var all = [];
+      (cfg.streams || []).concat(extra).forEach(function (u) { if (all.indexOf(u) < 0) all.push(u); });
+      if (!all.length) { toast("Couldn't find a stream for " + cfg.name); return; }
+      call("radioPlay", cfg.name, JSON.stringify(all));
+      setTimeout(buildGuide, 400);
+      setTimeout(function () { buildGuide(); refreshNowPlaying(); }, 4000);
+    });
   }
 
   // Each setting: a name, its choices, what each choice means, and how to apply it.
@@ -656,7 +676,7 @@
     setText("hl-title", c.title || c.t);
     setText("hl-sub", c.sub || c.s || "");
     var n = parseInt(row.num, 10);
-    var verb = n === 99 ? "change" : n === 95 ? "switch" : (n === 88 || n === 90) ? "listen" : (n >= 20 && n <= 39) ? "open" : "watch";
+    var verb = n === 99 ? "change" : n === 95 ? "switch" : n === 88 ? "listen" : (n >= 20 && n <= 39) ? "open" : "watch";
     setText("hl-hint", c.act ? "OK ▸ " + verb : "");
     var chEl = document.getElementById("pv-ch");
     var chHtml = '<span class="ch-n">CHANNEL ' + parseInt(row.num, 10) + '</span><span class="ch-nm">' + esc(row.name.toUpperCase()) + "</span>";

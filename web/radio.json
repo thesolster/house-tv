@@ -1,26 +1,33 @@
 {
-  "_note": "Local radio channels. Channel number is the FM frequency. The TV tries each stream in order until one plays.",
+  "_note": "Channel 88 Radio. One stop per station, in this order. 'streams' are known addresses, tried first. 'find' looks the station up in the radio-browser.info directory when it's played, for stations that don't publish their stream address. 'code' matches Regular's on-air feed (KZSC, KSQD).",
   "stations": [
-    {
-      "code": "KZSC",
-      "num": "88",
-      "name": "KZSC 88.1",
-      "about": "UC Santa Cruz community radio",
-      "playlist": "https://spinitron.com/KZSC/",
-      "streams": [
-        "https://kzscfms1-geckohost.radioca.st/kzschigh",
-        "http://kzscfms1-geckohost.radioca.st/kzschigh",
-        "https://kzscfms1-geckohost.radioca.st/stream",
-        "https://kzscfms1-geckohost.radioca.st/kzsclow"
-      ]
-    },
-    {
-      "code": "KSQD",
-      "num": "90",
-      "name": "KSQD 90.7",
-      "about": "Santa Cruz community radio",
-      "playlist": "https://spinitron.com/KSQD/",
-      "streams": ["http://ksqd.info:8000/stream"]
-    }
+    { "code": "KZSC", "name": "KZSC 88.1", "area": "Santa Cruz", "about": "UC Santa Cruz community radio", "playlist": "https://spinitron.com/KZSC/",
+      "streams": ["https://kzscfms1-geckohost.radioca.st/kzschigh", "http://kzscfms1-geckohost.radioca.st/kzschigh"], "find": "KZSC" },
+    { "code": "KSQD", "name": "KSQD 90.7", "area": "Santa Cruz", "about": "Santa Cruz community radio", "playlist": "https://spinitron.com/KSQD/",
+      "streams": ["http://ksqd.info:8000/stream"], "find": "KSQD" },
+    { "code": "KAZU", "name": "KAZU 90.3", "area": "Monterey Bay", "about": "NPR for the Monterey Bay",
+      "streams": ["https://kazu.streamguys1.com/kazu.mp3"] },
+    { "code": "KRML", "name": "KRML 94.7", "area": "Carmel", "about": "The Locals' Radio Station",
+      "streams": [], "find": "KRML" },
+    { "code": "KPIG", "name": "KPIG 107.5", "area": "Watsonville", "about": "Americana, roots and the Pig",
+      "streams": [], "find": "KPIG" },
+    { "code": "KAZU2", "name": "KAZU Classical", "area": "Monterey Bay", "about": "KAZU HD2, classical all day",
+      "streams": ["https://kazu.streamguys1.com/classical.mp3"] },
+    { "code": "KQED", "name": "KQED 88.5", "area": "San Francisco", "about": "NPR for Northern California",
+      "streams": ["https://streams.kqed.org/kqedradio", "http://streams.kqed.org/kqedradio"], "find": "KQED" },
+    { "code": "KKUP", "name": "KKUP 91.5", "area": "Cupertino", "about": "South Bay community radio, next door to Los Gatos",
+      "streams": [], "find": "KKUP" },
+    { "code": "KFJC", "name": "KFJC 89.7", "area": "Los Altos Hills", "about": "Foothill College, legendary freeform",
+      "streams": [], "find": "KFJC" },
+    { "code": "KSJS", "name": "KSJS 90.5", "area": "San Jose", "about": "San José State student radio",
+      "streams": [], "find": "KSJS" },
+    { "code": "KSCU", "name": "KSCU 103.3", "area": "Santa Clara", "about": "Santa Clara University student radio",
+      "streams": [], "find": "KSCU" },
+    { "code": "KCSM", "name": "KCSM 91.1", "area": "San Mateo", "about": "Jazz 91, the Bay Area's jazz station",
+      "streams": [], "find": "KCSM" },
+    { "code": "KHDC", "name": "KHDC 90.9", "area": "Salinas", "about": "Radio Bilingüe, Spanish-language public radio",
+      "streams": [], "find": "KHDC" },
+    { "code": "KSCO", "name": "KSCO 1080", "area": "Santa Cruz", "about": "Santa Cruz AM talk",
+      "streams": [], "find": "KSCO" }
   ]
 }
