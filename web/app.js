@@ -112,7 +112,7 @@
   setInterval(checkForUpdate, 2 * 60 * 1000);
 
   // Small stamp so we can tell which copy is on screen.
-  var PAGE_VERSION = "page 10";
+  var PAGE_VERSION = "page 11";
   var appVersion = window.HouseTV ? call("version") : "browser";
   setTimeout(function () {
     setText("build", PAGE_VERSION + " · app " + appVersion + " · " +
@@ -144,7 +144,8 @@
     var d = new Date();
     var t = fmtTime(d);
     var date = DAYS[d.getDay()] + ", " + MONTHS[d.getMonth()] + " " + d.getDate();
-    setText("clock", t);
+    var retro = document.body.classList.contains("retro");
+    setText("clock", retro ? (d.getHours() < 12 ? "AM " : "PM ") + t : t);
     setText("ambient-clock", t);
     setText("date", date);
     setText("ambient-date", date);
@@ -309,6 +310,7 @@
   function loadTickerFile() {
     return getJSON("ticker.json?t=" + Date.now()).then(function (j) {
       extraLines = (j.lines || []).filter(Boolean);
+      document.body.classList.toggle("retro", j.theme === "retro");
       setText("note", j.note ? "♥ " + j.note : "");
       setText("ambient-note", j.note ? "♥ " + j.note : "");
       buildTicker();
@@ -637,6 +639,8 @@
       row.el.style.transform = "translateX(" + (-offset) + "px)";
       if (ri === focus.r) row.lastC = focus.c;
     });
+    var ch = document.getElementById("osd-ch");
+    if (ch) ch.textContent = "CH " + String(focus.r + 2).padStart(2, "0");
     // Slide the list up so the focused row stays in the window above the ticker.
     var cur = rows[focus.r];
     if (cur) {
