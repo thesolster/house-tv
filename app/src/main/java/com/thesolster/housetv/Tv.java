@@ -289,6 +289,13 @@ public final class Tv {
                 o.put("title", title == null ? "" : title.toString());
                 o.put("subtitle", sub == null ? "" : sub.toString());
                 o.put("duration", md.getLong(MediaMetadata.METADATA_KEY_DURATION));
+                String mediaId = md.getString(MediaMetadata.METADATA_KEY_MEDIA_ID);
+                String mediaUri = md.getString(MediaMetadata.METADATA_KEY_MEDIA_URI);
+                o.put("mediaId", mediaId == null ? "" : mediaId);
+                o.put("mediaUri", mediaUri == null ? "" : mediaUri);
+                JSONArray keys = new JSONArray();
+                for (String k : md.keySet()) keys.put(k);
+                o.put("keys", keys);
             }
             if (st != null) {
                 int s = st.getState();
@@ -304,6 +311,46 @@ public final class Tv {
             return o.toString();
         } catch (Exception e) {
             return "{\"access\":false,\"error\":\"" + e.getClass().getSimpleName() + "\"}";
+        }
+    }
+
+    /**
+     * Get back into a show, best way first:
+     * 1. the app still has it loaded: bring the app up and tell it to play ("resumed")
+     * 2. the app gave us a link for it: open that ("opened")
+     * 3. otherwise just open the app ("app")
+     */
+    public static String resume(final Context ctx, String pkg, final String mediaId, String mediaUri) {
+        try {
+            MediaController found = null;
+            if (hasNowPlayingAccess(ctx)) {
+                MediaSessionManager msm = (MediaSessionManager) ctx.getSystemService(Context.MEDIA_SESSION_SERVICE);
+                for (MediaController c : msm.getActiveSessions(new ComponentName(ctx, NowPlayingListener.class))) {
+                    if (pkg.equals(c.getPackageName())) { found = c; break; }
+                }
+            }
+            if (found != null) {
+                String r = launch(ctx, pkg);
+                if (!"ok".equals(r)) return r;
+                final MediaController.TransportControls t = found.getTransportControls();
+                final MediaController ctl = found;
+                new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                    try {
+                        PlaybackState st = ctl.getPlaybackState();
+                        boolean playing = st != null && st.getState() == PlaybackState.STATE_PLAYING;
+                        if (!playing) t.play();
+                    } catch (Exception ignored) {
+                    }
+                }, 1800);
+                return "resumed";
+            }
+            if (mediaUri != null && !mediaUri.isEmpty()) {
+                if ("ok".equals(openUrl(ctx, mediaUri, pkg))) return "opened";
+            }
+            String r = launch(ctx, pkg);
+            return "ok".equals(r) ? "app" : r;
+        } catch (Exception e) {
+            return e.getClass().getSimpleName();
         }
     }
 
@@ -358,6 +405,8 @@ public final class Tv {
                     .put("key", key).put("pkg", pkg).put("app", np.optString("app"))
                     .put("title", title).put("subtitle", sub)
                     .put("position", np.optLong("position")).put("duration", np.optLong("duration"))
+                    .put("mediaId", np.optString("mediaId")).put("mediaUri", np.optString("mediaUri"))
+                    .put("keys", np.optJSONArray("keys"))
                     .put("at", System.currentTimeMillis());
             fresh.put(entry);
             for (int i = 0; i < old.length() && fresh.length() < HISTORY_MAX; i++) {

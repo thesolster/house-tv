@@ -31,6 +31,9 @@ public class HomeActivity extends Activity {
 
     private WebView web;
     private WebView viewer;
+    // Channels you can flip through with left/right while one plays full screen.
+    private org.json.JSONArray channels = null;
+    private int channelIdx = 0;
     private String homeUrl;
     private long loadedAt = 0;
 
@@ -150,8 +153,23 @@ public class HomeActivity extends Activity {
         js("window.houseBack && houseBack()");
     }
 
+    private void flip(int dir) {
+        if (channels == null || channels.length() == 0) return;
+        channelIdx = (channelIdx + dir + channels.length()) % channels.length();
+        org.json.JSONObject ch = channels.optJSONObject(channelIdx);
+        if (ch == null) return;
+        viewer.loadUrl(ch.optString("url"));
+        android.widget.Toast.makeText(this, ch.optString("name"), android.widget.Toast.LENGTH_SHORT).show();
+    }
+
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+        // While a town channel plays: left/right (or channel up/down) flips channels, like cable.
+        if (viewer.getVisibility() == View.VISIBLE && channels != null && event.getAction() == KeyEvent.ACTION_DOWN) {
+            int k = event.getKeyCode();
+            if (k == KeyEvent.KEYCODE_DPAD_RIGHT || k == KeyEvent.KEYCODE_CHANNEL_UP) { flip(1); return true; }
+            if (k == KeyEvent.KEYCODE_DPAD_LEFT || k == KeyEvent.KEYCODE_CHANNEL_DOWN) { flip(-1); return true; }
+        }
         // Play/pause on the remote controls whatever is playing, even from our screen.
         if (event.getAction() == KeyEvent.ACTION_DOWN
                 && event.getKeyCode() == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE
@@ -163,12 +181,14 @@ public class HomeActivity extends Activity {
     }
 
     private void openViewer(String url) {
+        channels = null; // watch() sets the list again when it's a channel
         viewer.setVisibility(View.VISIBLE);
         viewer.loadUrl(url);
         viewer.requestFocus();
     }
 
     private void closeViewer() {
+        channels = null;
         if (viewer.getVisibility() != View.VISIBLE) return;
         viewer.loadUrl("about:blank");
         viewer.setVisibility(View.GONE);
@@ -219,6 +239,25 @@ public class HomeActivity extends Activity {
         @JavascriptInterface public String media(String action) { return Tv.media(ctx, action); }
         @JavascriptInterface public String status() { return Tv.status(ctx); }
         @JavascriptInterface public String history() { return Tv.history(ctx); }
+        @JavascriptInterface public String resume(String pkg, String mediaId, String mediaUri) { return Tv.resume(ctx, pkg, mediaId, mediaUri); }
+
+        /** Play one of a list of channels full screen; left/right flips between them. */
+        @JavascriptInterface
+        public String watch(String json, int index) {
+            try {
+                final org.json.JSONArray list = new org.json.JSONArray(json);
+                final int i = Math.max(0, Math.min(index, list.length() - 1));
+                final String url = list.getJSONObject(i).getString("url");
+                runOnUiThread(() -> {
+                    openViewer(url);
+                    channels = list;
+                    channelIdx = i;
+                });
+                return "ok";
+            } catch (Exception e) {
+                return e.getClass().getSimpleName();
+            }
+        }
         @JavascriptInterface public String clearHistory() { return Tv.clearHistory(ctx); }
     }
 }

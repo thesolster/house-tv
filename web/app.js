@@ -112,7 +112,7 @@
   setInterval(checkForUpdate, 2 * 60 * 1000);
 
   // Small stamp so we can tell which copy is on screen.
-  var PAGE_VERSION = "page 8";
+  var PAGE_VERSION = "page 9";
   var appVersion = window.HouseTV ? call("version") : "browser";
   setTimeout(function () {
     setText("build", PAGE_VERSION + " · app " + appVersion + " · " +
@@ -227,7 +227,7 @@
   var REGULAR_TV = ["https://regular-tv-channels.vercel.app", "https://tv.regular.sc"];
   var REGULAR_FEED = ["https://regular.sc/api/channel-feed", "https://regular-agent.vercel.app/api/channel-feed"];
   var STATION_PAGE = REGULAR_TV[0] + "/tv/town";
-  var town = { events: [], alerts: [], photos: [], radio: [] };
+  var town = { events: [], alerts: [], photos: [], radio: [], ticker: [], channels: [] };
 
   function firstJSON(urls) {
     var i = 0;
@@ -257,6 +257,18 @@
       town.events = events;
       town.alerts = alerts;
       if (photos.length) town.photos = photos;
+      town.ticker = st.town_ticker === false ? [] : (st.town || []);
+      // The town's channels, in the station's own order, from its "Up next" bumpers.
+      var chans = [];
+      (st.spots || []).forEach(function (spot) {
+        var b = (spot.parts || [])[0];
+        if (!b || b.kind !== "bumper" || !/^bump-/.test(spot.id || "")) return;
+        var id = spot.id.replace(/^bump-/, "");
+        if (chans.some(function (c) { return c.id === id; })) return;
+        chans.push({ id: id, name: b.name, about: b.about || "", color: (spot.channel && spot.channel.color) || "#5bc4e3",
+          photo: b.photo && b.photo.url, url: REGULAR_TV[0] + "/tv/town/" + id });
+      });
+      if (chans.length) town.channels = chans;
     }).catch(function () {});
     var feed = firstJSON(REGULAR_FEED).then(function (f) {
       town.radio = (f.radio || []).filter(function (r) { return r.on && r.on.title; }).map(function (r) {
@@ -307,6 +319,19 @@
   loadTown();
   setInterval(loadTown, 10 * 60 * 1000);
 
+  function whenLabel(iso) {
+    var d = new Date(iso), now = new Date();
+    if (isNaN(d)) return "";
+    var allDay = d.getHours() === 0 && d.getMinutes() === 0;
+    var sameDay = d.toDateString() === now.toDateString();
+    var tmrw = new Date(now.getTime() + 86400000).toDateString() === d.toDateString();
+    if (sameDay && !allDay && d <= now) return "On now";
+    var t = allDay ? "" : fmtShortTime(d);
+    if (sameDay) return t || "Today";
+    if (tmrw) return "Tomorrow" + (t ? " " + t : "");
+    return DAYS[d.getDay()].slice(0, 3) + (t ? " " + t : "");
+  }
+
   var strip = document.getElementById("strip");
   var tickerX = 0, stripWidth = 0;
 
@@ -323,9 +348,16 @@
       items.push("<i>" + (t.high ? "High tide" : "Low tide") + "</i> " + fmtShortTime(t.at) + ", " + t.ft.toFixed(1) + " ft");
     });
     town.alerts.forEach(function (a) { items.push("<i>Heads up</i> " + esc(a)); });
-    town.events.slice(0, 7).forEach(function (e) {
-      items.push("<i>" + (e.now ? "On now" : esc(e.time || "Tonight")) + "</i> " + esc(e.title) + (e.place ? " at " + esc(e.place) : ""));
-    });
+    if (town.ticker.length) {
+      // Regular's own town ticker: what's on, soonest first.
+      town.ticker.forEach(function (t) {
+        items.push("<i>" + esc(whenLabel(t.when)) + "</i> " + esc(t.title) + (t.place ? " · " + esc(t.place) : ""));
+      });
+    } else {
+      town.events.slice(0, 7).forEach(function (e) {
+        items.push("<i>" + (e.now ? "On now" : esc(e.time || "Tonight")) + "</i> " + esc(e.title) + (e.place ? " at " + esc(e.place) : ""));
+      });
+    }
     town.radio.forEach(function (r) { items.push("<i>Radio</i> " + esc(r)); });
     extraLines.forEach(function (l) { items.push(esc(l)); });
     if (!items.length) items.push("Santa Cruz");
@@ -475,8 +507,27 @@
     t.querySelector(".w-bar div").style.width = pct + "%";
     t.querySelector(".w-when").textContent = ago(w.at);
     t.onActivate = function () {
-      var r = call("launch", w.pkg);
-      if (r !== "ok") toast("Couldn't open " + (w.app || "the app"));
+      var r = bridge.resume ? call("resume", w.pkg, w.mediaId || "", w.mediaUri || "") : call("launch", w.pkg);
+      if (r === "resumed" || r === "opened" || r === "ok") return;
+      if (r === "app") toast((w.app || "The app") + " is open. " + show + " is under Continue Watching.");
+      else toast("Couldn't open " + (w.app || "the app"));
+    };
+    return t;
+  }
+
+  function channelTile(ch, i, list) {
+    var t = document.createElement("div");
+    t.className = "tile channel";
+    t.innerHTML = '<div class="ch-img"></div><div class="ch-bar"></div><div class="ch-text"><div class="ch-kicker"></div><div class="ch-name"></div><div class="ch-about"></div></div>';
+    if (ch.photo) t.querySelector(".ch-img").style.backgroundImage = "url('" + ch.photo.replace(/'/g, "%27") + "')";
+    t.querySelector(".ch-bar").style.background = ch.color;
+    t.querySelector(".ch-kicker").style.color = ch.color;
+    t.querySelector(".ch-kicker").textContent = i === 0 ? "Channel 1" : "Channel " + (i + 1);
+    t.querySelector(".ch-name").textContent = ch.name;
+    t.querySelector(".ch-about").textContent = ch.about;
+    t.onActivate = function () {
+      var r = bridge.watch ? call("watch", JSON.stringify(list.map(function (c) { return { url: c.url, name: c.name }; })), i) : call("view", ch.url);
+      if (r !== "ok") toast("Couldn't open " + ch.name);
     };
     return t;
   }
@@ -527,6 +578,10 @@
     try { watched = (JSON.parse(call("history") || "{}").items || []); } catch (e) {}
     fill("watched", watched.slice(0, 10).map(watchedTile));
 
+    var chans = town.channels.length ? [{ id: "town", name: "Santa Cruz", about: "All of the town's channels, mixed by time of day",
+      color: "#5bc4e3", photo: town.photos[0] && town.photos[0].url, url: STATION_PAGE }].concat(town.channels) : [];
+    fill("channels", chans.map(function (c, i) { return channelTile(c, i, chans); }));
+
     fill("tonight", town.events.slice(0, 10).map(eventTile));
 
     var recent = [];
@@ -553,7 +608,7 @@
     }));
     fill("inputs", inputTiles);
 
-    rows = ["watched", "tonight", "recent", "live", "apps", "inputs"].map(function (id) {
+    rows = ["watched", "channels", "tonight", "recent", "live", "apps", "inputs"].map(function (id) {
       var el = document.getElementById(id);
       return { el: el, section: document.getElementById("row-" + id), tiles: Array.prototype.slice.call(el.querySelectorAll(".tile")) };
     }).filter(function (r) { return r.tiles.length; });
