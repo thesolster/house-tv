@@ -57,15 +57,43 @@
 
   /* ---------- stage scaling ---------- */
 
+  // The TV can report its size late, so measure again on load, on resize,
+  // and every couple of seconds; only touch the page when the size changed.
   var stage = document.getElementById("stage");
+  var lastFit = "";
   function fit() {
-    var s = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+    var de = document.documentElement;
+    var w = de.clientWidth || window.innerWidth;
+    var h = de.clientHeight || window.innerHeight;
+    if (!w || !h) return;
+    var key = w + "x" + h;
+    if (key === lastFit) return;
+    lastFit = key;
+    var s = Math.min(w / 1920, h / 1080);
     stage.style.transform = "scale(" + s + ")";
-    stage.style.left = ((window.innerWidth - 1920 * s) / 2) + "px";
-    stage.style.top = ((window.innerHeight - 1080 * s) / 2) + "px";
+    stage.style.left = ((w - 1920 * s) / 2) + "px";
+    stage.style.top = ((h - 1080 * s) / 2) + "px";
   }
   window.addEventListener("resize", fit);
+  window.addEventListener("load", fit);
+  setInterval(fit, 2000);
   fit();
+
+  // Pick up new versions of this page without anyone touching the TV.
+  var fingerprint = null;
+  function checkForUpdate() {
+    if (location.protocol === "file:") return;
+    Promise.all(["app.js", "style.css", "index.html"].map(function (f) {
+      return fetch(f + "?v=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.text(); });
+    })).then(function (parts) {
+      var text = parts.join("|"), hash = 0;
+      for (var i = 0; i < text.length; i++) hash = (hash * 31 + text.charCodeAt(i)) | 0;
+      if (fingerprint === null) fingerprint = hash;
+      else if (hash !== fingerprint) location.reload();
+    }).catch(function () {});
+  }
+  checkForUpdate();
+  setInterval(checkForUpdate, 2 * 60 * 1000);
 
   /* ---------- clock ---------- */
 
