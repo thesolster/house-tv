@@ -47,6 +47,7 @@ public class HomeActivity extends Activity {
 
     private WebView web;
     private String homeUrl;
+    private long loadedAt = 0;
     private final Map<String, String> artCache = new HashMap<>();
 
     @Override
@@ -64,6 +65,12 @@ public class HomeActivity extends Activity {
         s.setAllowFileAccess(true);
         s.setAllowFileAccessFromFileURLs(true);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
+        // Lay the page out at its own declared width (1920) and zoom it to fit the
+        // screen, instead of trusting the size the TV reports to the page.
+        s.setUseWideViewPort(true);
+        s.setLoadWithOverviewMode(true);
+        s.setSupportZoom(false);
+        s.setTextZoom(100);
         web.addJavascriptInterface(new Bridge(), "HouseTV");
         web.setWebViewClient(new WebViewClient() {
             @Override
@@ -78,6 +85,11 @@ public class HomeActivity extends Activity {
         web.setFocusableInTouchMode(true);
         setContentView(web);
         web.requestFocus(View.FOCUS_DOWN);
+        load();
+    }
+
+    private void load() {
+        loadedAt = System.currentTimeMillis();
         web.loadUrl(homeUrl.isEmpty() ? LOCAL_URL : homeUrl);
     }
 
@@ -85,8 +97,9 @@ public class HomeActivity extends Activity {
     protected void onResume() {
         super.onResume();
         String url = web.getUrl();
-        if (!homeUrl.isEmpty() && url != null && url.startsWith("file:")) {
-            web.loadUrl(homeUrl); // try the live page again
+        boolean stale = System.currentTimeMillis() - loadedAt > 10 * 60 * 1000;
+        if (stale || (!homeUrl.isEmpty() && url != null && url.startsWith("file:"))) {
+            load(); // fresh copy of the live page
         } else {
             js("window.houseResume && houseResume()");
         }

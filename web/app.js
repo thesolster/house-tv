@@ -95,6 +95,14 @@
   checkForUpdate();
   setInterval(checkForUpdate, 2 * 60 * 1000);
 
+  // Small stamp so we can tell which copy is on screen.
+  var PAGE_VERSION = "page 3";
+  var appVersion = window.HouseTV ? call("version") : "browser";
+  setTimeout(function () {
+    setText("build", PAGE_VERSION + " · app " + appVersion + " · " +
+      document.documentElement.clientWidth + "×" + document.documentElement.clientHeight);
+  }, 1500);
+
   /* ---------- clock ---------- */
 
   function fmtTime(d) {

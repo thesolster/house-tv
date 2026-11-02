@@ -26,6 +26,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 /* Top bar */
 #top { position: absolute; left: 96px; right: 96px; top: 56px; display: flex; justify-content: space-between; align-items: flex-start; }
 .where .label { font-size: 22px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+#build { font-size: 14px; color: var(--ink-3); margin-top: 8px; letter-spacing: 0.04em; }
 .where .place { font-size: 26px; color: var(--ink-2); margin-top: 6px; }
 .now { text-align: right; }
 #clock { font-family: var(--serif); font-size: 84px; line-height: 1; font-weight: 500; font-variant-numeric: tabular-nums; }
