@@ -6,7 +6,7 @@
 (function () {
   "use strict";
 
-  var PAGE_VERSION = "page 24";
+  var PAGE_VERSION = "page 25";
   var SANTA_CRUZ = { lat: 36.9741, lon: -122.0308, tz: "America/Los_Angeles" };
   var TIDE_STATION = "9413745"; // NOAA, Santa Cruz
   var IDLE_MS = 5 * 60 * 1000;
@@ -733,6 +733,7 @@
     tune.ch = ch || 0;
     closeDrawer();
     document.body.classList.add("tune");
+    showTuneKeys();
     setTuneChannel(tune.ch);
     renderTuneBar();
     clearInterval(tune.barTimer);
@@ -764,7 +765,13 @@
     flashTune(next.name);
     renderTuneBar(next);
   }
+  function showTuneKeys() {
+    document.body.classList.add("tune-keys-on");
+    clearTimeout(tune.keysTimer);
+    tune.keysTimer = setTimeout(function () { document.body.classList.remove("tune-keys-on"); }, 4000);
+  }
   function flashTune(text) {
+    showTuneKeys();
     var el = document.getElementById("tune-flash");
     el.textContent = text;
     el.classList.add("show");
@@ -778,13 +785,10 @@
     var live = st ? (town.stations.filter(function (r) { return r.station === st.code; })[0] || {}) : {};
     var on = live.on || {}, next = live.next || {};
     var state = rs.state === "playing" && st && rs.station === st.name ? "On the radio" : rs.state === "failed" ? "Couldn't tune in" : "Tuning in";
-    setText("tb-kicker", state);
+    setText("tb-kicker", state === "On the radio" ? "" : state);
     setText("tb-station", st ? st.name : "Radio");
-    setText("tb-area", st ? st.area : "");
-    setText("tb-show", on.title || (st ? st.about : ""));
-    setText("tb-sub", [on.host ? "with " + on.host : "", on.until ? "until " + on.until : "", next.title ? "next: " + next.title + (next.at ? " at " + next.at : "") : ""].filter(Boolean).join(" · "));
-    var list = tuneChannels();
-    setText("tb-town", "Town · " + (list[tune.ch] ? list[tune.ch].name : "Santa Cruz"));
+    setText("tb-show", on.title || (st ? st.area : ""));
+    setText("tb-sub", on.until ? "until " + on.until : "");
   }
 
   /* ---------- the preview window ---------- */
