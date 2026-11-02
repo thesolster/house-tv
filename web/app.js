@@ -6,7 +6,7 @@
 (function () {
   "use strict";
 
-  var PAGE_VERSION = "page 13";
+  var PAGE_VERSION = "page 14";
   var SANTA_CRUZ = { lat: 36.9741, lon: -122.0308, tz: "America/Los_Angeles" };
   var TIDE_STATION = "9413745"; // NOAA, Santa Cruz
   var IDLE_MS = 5 * 60 * 1000;
@@ -92,7 +92,7 @@
   var fingerprint = null;
   function checkForUpdate() {
     if (location.protocol === "file:") return;
-    Promise.all(["app.js", "style.css", "index.html", "skins/guide.css", "skins/seventies.css", "skins/teletext.css", "skins/surf.css"].map(function (f) {
+    Promise.all(["app.js", "style.css", "index.html", "skins/guide.css", "skins/seventies.css", "skins/teletext.css", "skins/surf.css", "view.css"].map(function (f) {
       return fetch(f + "?v=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.text(); });
     })).then(function (parts) {
       var text = parts.join("|"), hash = 0;
@@ -564,7 +564,20 @@
     setText("hl-sub", c.sub || c.s || "");
     setText("hl-hint", c.act ? "OK ▸ " + (row.num === "20" ? "open" : row.num === "21" ? "switch" : row.num === "22" ? "use this skin" : "watch") : "");
     setText("pv-ch", "CH " + row.num);
+    renderStrip(row);
     showPreview(c.preview || { type: "card", kicker: row.name, title: c.title || c.t });
+  }
+
+  // The strip under the big picture: this channel's shows around the one you're on.
+  function renderStrip(row) {
+    var el = document.getElementById("view-strip");
+    if (!el) return;
+    var start = Math.max(0, Math.min(focus.c - 1, row.cells.length - 5));
+    var html = '<div class="vs-chan">' + esc(row.num + " " + row.name) + "</div>";
+    row.cells.slice(start, start + 5).forEach(function (c, i) {
+      html += '<div class="vs-cell' + (start + i === focus.c ? " on" : "") + '"><div class="t">' + esc(c.t) + '</div><div class="s">' + esc(c.s || "") + "</div></div>";
+    });
+    el.innerHTML = html;
   }
 
   /* ---------- the preview window ---------- */
@@ -637,14 +650,27 @@
     paint();
   }
 
+  // "Inside the preview": the picture goes big, the guide steps aside.
+  var viewMode = false;
+  function setView(on) {
+    viewMode = on;
+    document.body.classList.toggle("view", on);
+  }
+
   document.addEventListener("keydown", function (e) {
     if (wake()) { e.preventDefault(); return; }
     switch (e.key || e.keyCode) {
       case "ArrowLeft": case 37: move(0, -1); break;
       case "ArrowRight": case 39: move(0, 1); break;
-      case "ArrowUp": case 38: move(-1, 0); break;
+      case "ArrowUp": case 38:
+        if (!viewMode && focus.r === 0) setView(true);   // up from the top row: step into the picture
+        else move(-1, 0);
+        break;
       case "ArrowDown": case 40: move(1, 0); break;
       case "Enter": case 13: case " ": var c = cur(); if (c && c.act) c.act(); break;
+      case "Escape": case "Backspace": case "GoBack": case 27: case 8:
+        if (viewMode) setView(false); else return;
+        break;
       default: return;
     }
     e.preventDefault();
@@ -668,8 +694,12 @@
   }
 
   // Called by the Android shell.
-  window.houseBack = function () { if (!wake()) { focus.r = 0; focus.c = 0; paint(); } };
-  window.houseHome = function () { wake(); focus.r = 0; focus.c = 0; paint(); };
+  window.houseBack = function () {
+    if (wake()) return;
+    if (viewMode) { setView(false); return; }
+    focus.r = 0; focus.c = 0; paint();
+  };
+  window.houseHome = function () { wake(); setView(false); focus.r = 0; focus.c = 0; paint(); };
   window.houseResume = function () { wake(); artCache = {}; buildGuide(); tick(); refreshNowPlaying(); };
 
   /* ---------- helpers ---------- */

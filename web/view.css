@@ -1,0 +1,45 @@
+/* "Inside the preview": the little TV grows, the guide slides away, the info panel
+   folds into a column on the right. Loaded after the skins so it wins on layout. */
+
+#preview, #info, #guide { transition: left .35s ease, top .35s ease, width .35s ease, height .35s ease, opacity .3s ease, transform .35s ease; }
+
+body.view #preview { left: 60px; top: 44px; width: 1376px; height: 774px; }
+body.view #guide { opacity: 0; transform: translateY(120px); pointer-events: none; }
+
+body.view #info { left: 1468px; right: 60px; top: 44px; height: 774px; }
+body.view #info-top { flex-direction: column; gap: 10px; }
+body.view #clock { font-size: 64px; }
+body.view #date { font-size: 22px; }
+body.view #weather { text-align: left; font-size: 22px; padding-top: 0; }
+body.view #note { white-space: normal; font-size: 24px; margin-top: 14px; }
+body.view #hl { margin-top: 22px; }
+body.view #hl-title { font-size: 40px; -webkit-line-clamp: 3; }
+body.view #hl-sub { font-size: 20px; -webkit-line-clamp: 3; }
+body.view #info-bottom { flex-direction: column; align-items: stretch; gap: 14px; }
+body.view #remote { margin-left: 0; }
+body.view #qr { width: 96px; height: 96px; }
+
+/* The how-to line rides along the bottom of the big picture */
+#view-hint { position: absolute; left: 60px; top: 836px; width: 1376px; text-align: center; font-size: 22px; color: var(--ink-3); opacity: 0; transition: opacity .3s; pointer-events: none; }
+body.view #view-hint { opacity: 1; }
+body.skin-guide #view-hint, body.skin-teletext #view-hint { font-family: var(--sans); font-size: 30px; text-transform: uppercase; color: var(--ink-2); }
+
+/* Under the big picture: the rest of this channel, so ◀ ▶ has context */
+#view-strip { position: absolute; left: 60px; top: 836px; width: 1376px; height: 84px; display: flex; gap: 8px; opacity: 0; transition: opacity .3s; pointer-events: none; }
+body.view #view-strip { opacity: 1; }
+#view-strip .vs-chan { flex: 0 0 auto; display: flex; align-items: center; padding: 0 18px; font-size: 22px; font-weight: 700; color: var(--accent); background: var(--panel); border-radius: 10px; }
+#view-strip .vs-cell { flex: 1 1 0; min-width: 0; padding: 10px 14px; background: var(--cell); border-radius: 10px; border: 2px solid transparent; display: flex; flex-direction: column; justify-content: center; }
+#view-strip .vs-cell.on { border-color: var(--accent); background: var(--cell-focus); }
+#view-strip .vs-cell .t { font-size: 19px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#view-strip .vs-cell .s { font-size: 14px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; }
+#view-hint { top: 940px; }
+body.skin-guide #view-strip *, body.skin-teletext #view-strip * { font-family: var(--sans); font-weight: 400; }
+body.skin-guide #view-strip .t, body.skin-teletext #view-strip .t { font-size: 28px; }
+body.skin-guide #view-strip .s, body.skin-teletext #view-strip .s { font-size: 20px; }
+body.skin-guide #view-strip .vs-cell, body.skin-teletext #view-strip .vs-cell, body.skin-teletext #view-strip .vs-chan { border-radius: 0; }
+body.skin-guide #view-strip .vs-cell.on { background: var(--accent); }
+body.skin-guide #view-strip .vs-cell.on .t, body.skin-guide #view-strip .vs-cell.on .s { color: #0b0d3a; }
+body.skin-surf #view-strip .vs-cell { background: #fff6e4; border-color: rgba(18,52,59,0.15); }
+body.skin-surf #view-strip .vs-cell.on { background: #0f6e7a; border-color: #12343b; }
+body.skin-surf #view-strip .vs-cell.on .t, body.skin-surf #view-strip .vs-cell.on .s { color: #fff6e4; }
+body.skin-surf #view-strip .vs-chan { background: #12343b; color: #f6b73c; }
