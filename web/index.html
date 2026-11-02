@@ -11,77 +11,50 @@
 </head>
 <body>
 <div id="stage">
-  <div id="photo"><div class="ph a"></div><div class="ph b"></div></div>
-  <div id="glow"></div>
-  <div id="photo-credit"></div>
 
-  <header id="top">
-    <div class="where">
-      <div class="label">Home</div>
-      <div class="place">Santa Cruz</div>
-      <div id="build"></div>
-    </div>
-    <div class="now">
-      <div id="clock">--:--</div>
-      <div id="date"></div>
-    </div>
-  </header>
-
-  <section id="hero">
-    <h1 id="greeting">Hello.</h1>
-    <p id="summary">&nbsp;</p>
-    <p id="note" class="note"></p>
+  <!-- Top half: what you're on, playing live, and what it is -->
+  <section id="preview">
+    <div id="pv-photo" class="pv"></div>
+    <iframe id="pv-live" class="pv" title="Preview" scrolling="no" tabindex="-1"></iframe>
+    <div id="pv-card" class="pv"><div id="pv-card-kicker"></div><div id="pv-card-title"></div></div>
+    <img id="pv-banner" class="pv" alt="">
+    <div id="pv-credit"></div>
+    <div id="pv-ch"></div>
   </section>
 
-  <aside id="side">
-    <div id="np" class="card hidden">
-      <div class="np-app" id="np-app"></div>
-      <div class="np-title" id="np-title"></div>
-      <div class="np-sub" id="np-sub"></div>
-      <div class="np-bar"><div id="np-fill"></div></div>
-      <div class="np-state" id="np-state"></div>
-    </div>
-    <div id="remote" class="card hidden">
-      <div id="qr"></div>
-      <div class="remote-text">
-        <div class="remote-title">Phone remote</div>
-        <div class="remote-sub">Scan on the house wifi</div>
+  <section id="info">
+    <div id="info-top">
+      <div>
+        <div id="clock">--:--</div>
+        <div id="date"></div>
       </div>
+      <div id="weather"></div>
     </div>
-  </aside>
+    <div id="note" class="note"></div>
+    <div id="hl">
+      <div id="hl-kicker"></div>
+      <div id="hl-title"></div>
+      <div id="hl-sub"></div>
+      <div id="hl-hint"></div>
+    </div>
+    <div id="info-bottom">
+      <div id="np" class="hidden">
+        <div id="np-app"></div>
+        <div id="np-title"></div>
+        <div class="np-bar"><div id="np-fill"></div></div>
+      </div>
+      <div id="remote" class="hidden"><div id="qr"></div><div class="remote-text">Phone<br>remote</div></div>
+    </div>
+  </section>
 
-  <div id="rowsClip">
-    <main id="rows">
-      <section class="row hidden" id="row-watched">
-        <h2>Last watched</h2>
-        <div class="track"><div class="tiles" id="watched"></div></div>
-      </section>
-      <section class="row hidden" id="row-channels">
-        <h2>Regular TV <span class="from">Santa Cruz channels · ◀ ▶ to flip while watching</span></h2>
-        <div class="track"><div class="tiles" id="channels"></div></div>
-      </section>
-      <section class="row hidden" id="row-tonight">
-        <h2>Tonight in Santa Cruz <span class="from">from Regular</span></h2>
-        <div class="track"><div class="tiles" id="tonight"></div></div>
-      </section>
-      <section class="row hidden" id="row-recent">
-        <h2>Recent</h2>
-        <div class="track"><div class="tiles" id="recent"></div></div>
-      </section>
-      <section class="row" id="row-live">
-        <h2>Live around town</h2>
-        <div class="track"><div class="tiles" id="live"></div></div>
-      </section>
-      <section class="row" id="row-apps">
-        <h2>All apps</h2>
-        <div class="track"><div class="tiles" id="apps"></div></div>
-      </section>
-      <section class="row" id="row-inputs">
-        <h2>Inputs &amp; settings</h2>
-        <div class="track"><div class="tiles" id="inputs"></div></div>
-      </section>
-    </main>
-  </div>
+  <!-- Bottom half: the guide. Every row is a channel. -->
+  <section id="guide">
+    <div id="guide-head">
+      <div class="gh-left">House guide</div>
+      <div class="gh-right"><span id="build"></span>▲ ▼ channels · ◀ ▶ shows · OK to watch</div>
+    </div>
+    <div id="guide-window"><div id="guide-rows"></div></div>
+  </section>
 
   <div id="ambient">
     <div id="ambient-clock">--:--</div>
@@ -97,7 +70,6 @@
 
   <div id="toast"></div>
   <div id="crt" aria-hidden="true"></div>
-  <div id="osd" aria-hidden="true"><span id="osd-ch">CH 03</span><span id="osd-play">▶ PLAY</span></div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <script src="app.js"></script>

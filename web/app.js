@@ -1,21 +1,26 @@
-/* House TV home screen.
- * Runs inside the House TV Android shell (window.HouseTV bridge) or in any
- * browser for previewing, where the bridge is faked with sample apps. */
+/* House TV: the house guide channel.
+ * Top half: a live preview of whatever you're on, and what it is.
+ * Bottom half: a guide where every row is a channel (your shows, the town, tonight,
+ * Regular's channels, apps, inputs).
+ * Runs inside the House TV Android shell (window.HouseTV) or in a browser with sample data. */
 (function () {
   "use strict";
 
+  var PAGE_VERSION = "page 12";
   var SANTA_CRUZ = { lat: 36.9741, lon: -122.0308, tz: "America/Los_Angeles" };
   var TIDE_STATION = "9413745"; // NOAA, Santa Cruz
   var IDLE_MS = 5 * 60 * 1000;
+  var STATION_AFTER_MS = 15 * 60 * 1000;
+  var REGULAR_TV = ["https://regular-tv-channels.vercel.app", "https://tv.regular.sc"];
+  var REGULAR_FEED = ["https://regular.sc/api/channel-feed", "https://regular-agent.vercel.app/api/channel-feed"];
+  var STATION_PAGE = REGULAR_TV[0] + "/tv/town";
 
-  // Apps we want first, in this order, if they're installed. Everything else follows A-Z.
   var PREFERRED = [
     "com.netflix.ninja", "com.amazon.firetv.youtube", "com.google.android.youtube.tv",
     "com.amazon.avod", "com.disney.disneyplus", "com.hulu.plus", "com.wbd.stream",
     "com.hbo.hbonow", "com.apple.atve.amazon.appletv", "com.peacocktv.peacockandroid",
     "com.spotify.tv.android", "com.plexapp.android", "tv.pluto.android"
   ];
-  // Amazon plumbing that shows up as "apps" but isn't something you'd open from the couch.
   var HIDDEN = [
     "com.amazon.tv.launcher", "com.amazon.tv.settings.v2", "com.amazon.venezia",
     "com.amazon.device.software.ota", "com.amazon.tv.oobe", "com.amazon.tv.legal.notices"
@@ -24,34 +29,21 @@
   /* ---------- bridge ---------- */
 
   var bridge = window.HouseTV || {
-    // Browser preview stand-in.
     apps: function () {
       return JSON.stringify([
-        { pkg: "com.netflix.ninja", label: "Netflix" },
-        { pkg: "com.amazon.firetv.youtube", label: "YouTube" },
-        { pkg: "com.amazon.avod", label: "Prime Video" },
-        { pkg: "com.disney.disneyplus", label: "Disney+" },
-        { pkg: "com.spotify.tv.android", label: "Spotify" },
-        { pkg: "com.plexapp.android", label: "Plex" }
+        { pkg: "com.netflix.ninja", label: "Netflix" }, { pkg: "com.amazon.firetv.youtube", label: "YouTube" },
+        { pkg: "com.amazon.avod", label: "Prime Video" }, { pkg: "com.hbo.hbonow", label: "HBO Max" },
+        { pkg: "com.spotify.tv.android", label: "Spotify" }
       ]);
     },
     icon: function () { return ""; },
     launch: function (pkg) { toast("Would open " + pkg); return "ok"; },
-    inputs: function () {
-      return JSON.stringify([
-        { id: "hdmi1", label: "HDMI 1" }, { id: "hdmi2", label: "HDMI 2" },
-        { id: "hdmi3", label: "HDMI 3" }, { id: "tuner", label: "Antenna" }
-      ]);
-    },
+    inputs: function () { return JSON.stringify([{ id: "hdmi1", label: "HDMI 1" }, { id: "hdmi2", label: "HDMI 2" }, { id: "tuner", label: "Antenna" }]); },
     openInput: function (id) { toast("Would switch to " + id); return "ok"; },
     settings: function () { toast("Would open settings"); return "ok"; },
-    version: function () { return "browser preview"; },
-    recent: function () {
-      return JSON.stringify([{ pkg: "com.netflix.ninja", label: "Netflix" }, { pkg: "com.amazon.firetv.youtube", label: "YouTube" }]);
-    },
-    nowPlaying: function () {
-      return JSON.stringify({ access: true, pkg: "com.netflix.ninja", app: "Netflix", title: "The Sopranos", subtitle: "S2:E4 · Commendatori", state: "playing", position: 1500000, duration: 3300000 });
-    },
+    version: function () { return "browser"; },
+    recent: function () { return JSON.stringify([{ pkg: "com.netflix.ninja", label: "Netflix" }, { pkg: "com.amazon.firetv.youtube", label: "YouTube" }]); },
+    nowPlaying: function () { return JSON.stringify({ access: true, pkg: "com.hbo.hbonow", app: "HBO Max", title: "Amour Fou", subtitle: "The Sopranos", state: "paused", position: 1796988, duration: 3300000 }); },
     media: function (a) { toast("Would " + a); return "ok"; },
     history: function () {
       return JSON.stringify({ items: [
@@ -61,26 +53,27 @@
     },
     openUrl: function (u) { toast("Would open " + u); return "ok"; },
     view: function (u) { toast("Would show " + u); return "ok"; },
-    status: function () { return JSON.stringify({ usage: true, nowPlaying: true, remote: "http://192.168.1.42:8765/?t=preview" }); }
+    status: function () { return JSON.stringify({ usage: true, nowPlaying: true, remote: "http://192.168.4.38:8765/?t=preview" }); }
   };
+  var inShell = !!window.HouseTV;
 
   function call(name) {
     try {
-      var args = Array.prototype.slice.call(arguments, 1);
-      return bridge[name].apply(bridge, args);
+      if (!bridge[name]) return "missing";
+      return bridge[name].apply(bridge, Array.prototype.slice.call(arguments, 1));
     } catch (e) { return "error: " + e.message; }
   }
+  function json(name, fallback) {
+    try { return JSON.parse(call(name) || "null") || fallback; } catch (e) { return fallback; }
+  }
 
-  /* ---------- stage scaling ---------- */
+  /* ---------- fit the 1920x1080 stage to the screen ---------- */
 
-  // The TV can report its size late, so measure again on load, on resize,
-  // and every couple of seconds; only touch the page when the size changed.
   var stage = document.getElementById("stage");
   var lastFit = "";
   function fit() {
     var de = document.documentElement;
-    var w = de.clientWidth || window.innerWidth;
-    var h = de.clientHeight || window.innerHeight;
+    var w = de.clientWidth || window.innerWidth, h = de.clientHeight || window.innerHeight;
     if (!w || !h) return;
     var key = w + "x" + h;
     if (key === lastFit) return;
@@ -95,11 +88,11 @@
   setInterval(fit, 2000);
   fit();
 
-  // Pick up new versions of this page without anyone touching the TV.
+  // Reload when the page changes, so the TV updates without anyone touching it.
   var fingerprint = null;
   function checkForUpdate() {
     if (location.protocol === "file:") return;
-    Promise.all(["app.js", "style.css", "index.html"].map(function (f) {
+    Promise.all(["app.js", "style.css", "retro.css", "index.html"].map(function (f) {
       return fetch(f + "?v=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.text(); });
     })).then(function (parts) {
       var text = parts.join("|"), hash = 0;
@@ -111,58 +104,49 @@
   checkForUpdate();
   setInterval(checkForUpdate, 2 * 60 * 1000);
 
-  // Small stamp so we can tell which copy is on screen.
-  var PAGE_VERSION = "page 11";
-  var appVersion = window.HouseTV ? call("version") : "browser";
   setTimeout(function () {
-    setText("build", PAGE_VERSION + " · app " + appVersion + " · " +
-      document.documentElement.clientWidth + "×" + document.documentElement.clientHeight);
+    setText("build", PAGE_VERSION + " · app " + (inShell ? call("version") : "browser"));
   }, 1500);
+
+  /* ---------- settings: theme, note, extra ticker lines ---------- */
+
+  var settings = { theme: "", note: "", lines: [], preview: "live" };
+  function loadSettings() {
+    return getJSON("ticker.json?t=" + Date.now()).then(function (j) {
+      settings.theme = j.theme || "";
+      settings.note = j.note || "";
+      settings.lines = (j.lines || []).filter(Boolean);
+      settings.preview = j.preview || "live";
+      document.body.classList.toggle("retro", settings.theme === "retro");
+      setText("note", settings.note ? "♥ " + settings.note : "");
+      setText("ambient-note", settings.note ? "♥ " + settings.note : "");
+      tick();
+      buildTicker();
+    }).catch(function () {});
+  }
 
   /* ---------- clock ---------- */
 
-  function fmtTime(d) {
-    var h = d.getHours(), m = d.getMinutes();
-    var h12 = h % 12 || 12;
-    return h12 + ":" + (m < 10 ? "0" : "") + m;
-  }
-  function fmtShortTime(iso) {
-    var d = new Date(iso);
-    return fmtTime(d) + (d.getHours() < 12 ? "am" : "pm");
-  }
   var DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   var MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-
-  function greetingFor(h) {
-    if (h < 5) return "Late night.";
-    if (h < 12) return "Good morning.";
-    if (h < 17) return "Good afternoon.";
-    return "Good evening.";
-  }
-
+  function fmtTime(d) { var h = d.getHours() % 12 || 12, m = d.getMinutes(); return h + ":" + (m < 10 ? "0" : "") + m; }
+  function fmtShortTime(x) { var d = new Date(x); return fmtTime(d) + (d.getHours() < 12 ? "am" : "pm"); }
   function tick() {
-    var d = new Date();
-    var t = fmtTime(d);
-    var date = DAYS[d.getDay()] + ", " + MONTHS[d.getMonth()] + " " + d.getDate();
+    var d = new Date(), t = fmtTime(d);
     var retro = document.body.classList.contains("retro");
     setText("clock", retro ? (d.getHours() < 12 ? "AM " : "PM ") + t : t);
     setText("ambient-clock", t);
+    var date = DAYS[d.getDay()] + ", " + MONTHS[d.getMonth()] + " " + d.getDate();
     setText("date", date);
     setText("ambient-date", date);
-    setText("greeting", greetingFor(d.getHours()));
   }
-  setInterval(tick, 1000 * 10);
+  setInterval(tick, 10000);
   tick();
 
-  /* ---------- weather, sunset, tides ---------- */
+  /* ---------- weather and tides ---------- */
 
-  var WMO = {
-    0: "clear", 1: "mostly clear", 2: "partly cloudy", 3: "cloudy", 45: "foggy", 48: "foggy",
-    51: "drizzly", 53: "drizzly", 55: "drizzly", 61: "light rain", 63: "rain", 65: "heavy rain",
-    71: "light snow", 73: "snow", 75: "heavy snow", 80: "showers", 81: "showers", 82: "heavy showers",
-    95: "thunderstorms", 96: "thunderstorms", 99: "thunderstorms"
-  };
-
+  var WMO = { 0: "clear", 1: "mostly clear", 2: "partly cloudy", 3: "cloudy", 45: "foggy", 48: "foggy", 51: "drizzly", 53: "drizzly", 55: "drizzly",
+    61: "light rain", 63: "rain", 65: "heavy rain", 80: "showers", 81: "showers", 82: "heavy showers", 95: "thunderstorms" };
   var conditions = { weather: null, tides: [] };
 
   function loadWeather() {
@@ -171,26 +155,16 @@
       "&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=" + encodeURIComponent(SANTA_CRUZ.tz) + "&forecast_days=2";
     return getJSON(url).then(function (j) {
       conditions.weather = {
-        temp: Math.round(j.current.temperature_2m),
-        sky: WMO[j.current.weather_code] || "",
-        wind: Math.round(j.current.wind_speed_10m),
-        hi: Math.round(j.daily.temperature_2m_max[0]),
-        lo: Math.round(j.daily.temperature_2m_min[0]),
-        sunset: j.daily.sunset[0],
-        sunrise: j.daily.sunrise[1],
-        tomorrowHi: Math.round(j.daily.temperature_2m_max[1])
+        temp: Math.round(j.current.temperature_2m), sky: WMO[j.current.weather_code] || "", wind: Math.round(j.current.wind_speed_10m),
+        hi: Math.round(j.daily.temperature_2m_max[0]), lo: Math.round(j.daily.temperature_2m_min[0]),
+        sunset: j.daily.sunset[0], sunrise: j.daily.sunrise[1], tomorrowHi: Math.round(j.daily.temperature_2m_max[1])
       };
     }).catch(function () {});
   }
-
-  function ymd(d) {
-    return d.getFullYear() + String(d.getMonth() + 1).padStart(2, "0") + String(d.getDate()).padStart(2, "0");
-  }
-
+  function ymd(d) { return d.getFullYear() + String(d.getMonth() + 1).padStart(2, "0") + String(d.getDate()).padStart(2, "0"); }
   function loadTides() {
-    var url = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=predictions&application=house_tv" +
-      "&begin_date=" + ymd(new Date()) + "&range=48&datum=MLLW&station=" + TIDE_STATION +
-      "&time_zone=lst_ldt&units=english&interval=hilo&format=json";
+    var url = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=predictions&application=house_tv&begin_date=" + ymd(new Date()) +
+      "&range=48&datum=MLLW&station=" + TIDE_STATION + "&time_zone=lst_ldt&units=english&interval=hilo&format=json";
     return getJSON(url).then(function (j) {
       var now = Date.now();
       conditions.tides = (j.predictions || []).map(function (p) {
@@ -198,36 +172,24 @@
       }).filter(function (p) { return p.at.getTime() > now; }).slice(0, 2);
     }).catch(function () {});
   }
-
-  function summaryLine() {
+  function weatherLine() {
     var w = conditions.weather;
     if (!w) return "";
-    var parts = [w.temp + "° and " + w.sky + " in Santa Cruz."];
-    var now = new Date();
-    var sunset = new Date(w.sunset);
-    if (sunset > now) parts.push("Sunset at " + fmtShortTime(w.sunset) + ".");
-    else parts.push("Tomorrow, a high of " + w.tomorrowHi + "°.");
-    return parts.join(" ");
+    var later = new Date(w.sunset) > new Date() ? "Sunset " + fmtShortTime(w.sunset) : "Tomorrow " + w.tomorrowHi + "°";
+    return w.temp + "° " + w.sky + "\n" + later;
   }
-
-  function renderSummary() {
-    var s = summaryLine();
-    setText("summary", s);
-    setText("ambient-summary", s);
-    buildTicker();
-  }
-
   function refreshConditions() {
-    Promise.all([loadWeather(), loadTides()]).then(renderSummary);
+    Promise.all([loadWeather(), loadTides()]).then(function () {
+      var line = weatherLine();
+      var el = document.getElementById("weather");
+      el.innerHTML = line.split("\n").map(esc).join("<br>");
+      setText("ambient-summary", line.replace("\n", " · "));
+      buildTicker();
+    });
   }
-  refreshConditions();
-  setInterval(refreshConditions, 15 * 60 * 1000);
 
-  /* ---------- Regular: town station and channel feed ---------- */
+  /* ---------- Regular: the town station and channel feed ---------- */
 
-  var REGULAR_TV = ["https://regular-tv-channels.vercel.app", "https://tv.regular.sc"];
-  var REGULAR_FEED = ["https://regular.sc/api/channel-feed", "https://regular-agent.vercel.app/api/channel-feed"];
-  var STATION_PAGE = REGULAR_TV[0] + "/tv/town";
   var town = { events: [], alerts: [], photos: [], radio: [], ticker: [], channels: [] };
 
   function firstJSON(urls) {
@@ -239,36 +201,53 @@
     return next();
   }
 
+  function spotLines(spot) {
+    var out = [];
+    (spot.parts || []).forEach(function (p) {
+      if (p.kind === "event") out.push({ t: p.title, s: (p.now ? "On now" : p.time || "") + (p.place ? " · " + p.place : ""), now: !!p.now, photo: p.photo && p.photo.url });
+      else if (p.kind === "list") (p.rows || []).slice(0, 3).forEach(function (r) { out.push({ t: r.main, s: [r.left, r.sub].filter(Boolean).join(" · ") }); });
+      else if (p.kind === "message") out.push({ t: p.text, s: p.sub || "" });
+      else if (p.kind === "stats") out.push({ t: p.title, s: (p.tiles || []).slice(0, 3).map(function (x) { return x.label + " " + x.value; }).join(" · ") });
+      else if (p.kind === "bulletin") out.push({ t: p.title, s: p.at || "" });
+      else if (p.kind === "flyer") out.push({ t: p.title, s: p.when || "", photo: p.url });
+    });
+    return out;
+  }
+
   function loadTown() {
     var station = firstJSON(REGULAR_TV.map(function (b) { return b + "/api/town/station"; })).then(function (st) {
-      var events = [], alerts = [], photos = [], seen = {};
+      var events = [], alerts = [], photos = [], seen = {}, chans = [], byId = {};
       (st.spots || []).forEach(function (spot) {
-        (spot.parts || []).forEach(function (p) {
-          if (p.kind === "event") {
-            events.push({ title: p.title, place: p.place, time: p.time, now: !!p.now,
-              photo: p.photo && p.photo.url, credit: p.photo && p.photo.credit, url: p.ref && p.ref.u });
-          } else if (p.kind === "message" && p.text) {
-            alerts.push(p.text + (p.sub ? " · " + p.sub : ""));
-          } else if (p.kind === "bumper" && p.photo && p.photo.url && !seen[p.photo.url]) {
-            seen[p.photo.url] = 1;
-            photos.push({ url: p.photo.url, credit: p.photo.credit || "" });
+        var first = (spot.parts || [])[0];
+        if (first && first.kind === "bumper" && /^bump-/.test(spot.id || "")) {
+          var id = spot.id.replace(/^bump-/, "");
+          if (!byId[id]) {
+            byId[id] = { id: id, name: first.name, about: first.about || "", color: (spot.channel && spot.channel.color) || "#5bc4e3",
+              photo: first.photo && first.photo.url, credit: first.photo && first.photo.credit, url: REGULAR_TV[0] + "/tv/town/" + id, items: [] };
+            chans.push(byId[id]);
           }
+          if (first.photo && first.photo.url && !seen[first.photo.url]) {
+            seen[first.photo.url] = 1;
+            photos.push({ url: first.photo.url, credit: first.photo.credit || "" });
+          }
+          return;
+        }
+        (spot.parts || []).forEach(function (p) {
+          if (p.kind === "event") events.push({ title: p.title, place: p.place, time: p.time, now: !!p.now, photo: p.photo && p.photo.url, credit: p.photo && p.photo.credit, url: p.ref && p.ref.u });
+          else if (p.kind === "message" && p.text) alerts.push(p.text + (p.sub ? " · " + p.sub : ""));
         });
+        var ch = byId[spot.channel_id];
+        if (ch) ch.items = ch.items.concat(spotLines(spot));
+      });
+      // Spots can arrive before their bumper; sweep once more so every channel gets its items.
+      (st.spots || []).forEach(function (spot) {
+        var ch = byId[spot.channel_id];
+        if (ch && !ch.items.length && !/^bump-/.test(spot.id || "")) ch.items = spotLines(spot);
       });
       town.events = events;
       town.alerts = alerts;
       if (photos.length) town.photos = photos;
       town.ticker = st.town_ticker === false ? [] : (st.town || []);
-      // The town's channels, in the station's own order, from its "Up next" bumpers.
-      var chans = [];
-      (st.spots || []).forEach(function (spot) {
-        var b = (spot.parts || [])[0];
-        if (!b || b.kind !== "bumper" || !/^bump-/.test(spot.id || "")) return;
-        var id = spot.id.replace(/^bump-/, "");
-        if (chans.some(function (c) { return c.id === id; })) return;
-        chans.push({ id: id, name: b.name, about: b.about || "", color: (spot.channel && spot.channel.color) || "#5bc4e3",
-          photo: b.photo && b.photo.url, url: REGULAR_TV[0] + "/tv/town/" + id });
-      });
       if (chans.length) town.channels = chans;
     }).catch(function () {});
     var feed = firstJSON(REGULAR_FEED).then(function (f) {
@@ -276,50 +255,15 @@
         return "On " + r.station + ": " + r.on.title + (r.on.host ? " with " + r.on.host : "") + (r.on.until ? " until " + r.on.until : "");
       });
     }).catch(function () {});
-    return Promise.all([station, feed]).then(function () {
-      buildTicker();
-      buildRows();
-      if (!photoTimer) nextPhoto();
-    });
+    return Promise.all([station, feed]).then(function () { buildTicker(); buildGuide(); });
   }
 
-  // Rotate the town's photos behind the top of the screen.
-  var photoTimer = null, photoIdx = -1, photoLayer = 0;
-  function nextPhoto() {
-    if (!town.photos.length) return;
-    photoIdx = (photoIdx + 1) % town.photos.length;
-    var ph = town.photos[photoIdx];
-    var img = new Image();
-    img.onload = function () {
-      var layers = document.querySelectorAll("#photo .ph");
-      photoLayer = 1 - photoLayer;
-      layers[photoLayer].style.backgroundImage = "url('" + ph.url.replace(/'/g, "%27") + "')";
-      layers[photoLayer].classList.add("on");
-      layers[1 - photoLayer].classList.remove("on");
-      setText("photo-credit", ph.credit);
-    };
-    img.src = ph.url;
-    clearTimeout(photoTimer);
-    photoTimer = setTimeout(nextPhoto, 45 * 1000);
+  var liveItems = [];
+  function loadLive() {
+    return getJSON("live.json?t=" + Date.now()).then(function (j) { liveItems = j.items || []; buildGuide(); }).catch(function () {});
   }
 
   /* ---------- ticker ---------- */
-
-  var extraLines = [];
-
-  function loadTickerFile() {
-    return getJSON("ticker.json?t=" + Date.now()).then(function (j) {
-      extraLines = (j.lines || []).filter(Boolean);
-      document.body.classList.toggle("retro", j.theme === "retro");
-      setText("note", j.note ? "♥ " + j.note : "");
-      setText("ambient-note", j.note ? "♥ " + j.note : "");
-      buildTicker();
-    }).catch(function () {});
-  }
-  loadTickerFile();
-  setInterval(loadTickerFile, 10 * 60 * 1000);
-  loadTown();
-  setInterval(loadTown, 10 * 60 * 1000);
 
   function whenLabel(iso) {
     var d = new Date(iso), now = new Date();
@@ -336,44 +280,28 @@
 
   var strip = document.getElementById("strip");
   var tickerX = 0, stripWidth = 0;
-
   function buildTicker() {
     var items = [];
+    town.alerts.forEach(function (a) { items.push("<i>Heads up</i> " + esc(a)); });
+    town.ticker.forEach(function (t) { items.push("<i>" + esc(whenLabel(t.when)) + "</i> " + esc(t.title) + (t.place ? " · " + esc(t.place) : "")); });
+    town.radio.forEach(function (r) { items.push("<i>Radio</i> " + esc(r)); });
     var w = conditions.weather;
     if (w) {
       items.push("<i>Now</i> " + w.temp + "° " + esc(w.sky) + ", wind " + w.wind + " mph");
       items.push("<i>Today</i> high " + w.hi + "°, low " + w.lo + "°");
       if (new Date(w.sunset) > new Date()) items.push("<i>Sunset</i> " + fmtShortTime(w.sunset));
-      items.push("<i>Sunrise</i> " + fmtShortTime(w.sunrise));
     }
-    conditions.tides.forEach(function (t) {
-      items.push("<i>" + (t.high ? "High tide" : "Low tide") + "</i> " + fmtShortTime(t.at) + ", " + t.ft.toFixed(1) + " ft");
-    });
-    town.alerts.forEach(function (a) { items.push("<i>Heads up</i> " + esc(a)); });
-    if (town.ticker.length) {
-      // Regular's own town ticker: what's on, soonest first.
-      town.ticker.forEach(function (t) {
-        items.push("<i>" + esc(whenLabel(t.when)) + "</i> " + esc(t.title) + (t.place ? " · " + esc(t.place) : ""));
-      });
-    } else {
-      town.events.slice(0, 7).forEach(function (e) {
-        items.push("<i>" + (e.now ? "On now" : esc(e.time || "Tonight")) + "</i> " + esc(e.title) + (e.place ? " at " + esc(e.place) : ""));
-      });
-    }
-    town.radio.forEach(function (r) { items.push("<i>Radio</i> " + esc(r)); });
-    extraLines.forEach(function (l) { items.push(esc(l)); });
+    conditions.tides.forEach(function (t) { items.push("<i>" + (t.high ? "High tide" : "Low tide") + "</i> " + fmtShortTime(t.at) + ", " + t.ft.toFixed(1) + " ft"); });
+    settings.lines.forEach(function (l) { items.push(esc(l)); });
     if (!items.length) items.push("Santa Cruz");
-
     var html = items.map(function (s) { return "<span>" + s + "</span><span>·</span>"; }).join("");
-    strip.innerHTML = html + html; // doubled so the loop is seamless
+    strip.innerHTML = html + html;
     stripWidth = strip.scrollWidth / 2;
   }
-
   var lastFrame = 0;
   function runTicker(ts) {
     if (lastFrame) {
-      var dt = Math.min(ts - lastFrame, 100);
-      tickerX -= dt * 0.09; // px per ms
+      tickerX -= Math.min(ts - lastFrame, 100) * 0.09;
       if (stripWidth && -tickerX >= stripWidth) tickerX += stripWidth;
       strip.style.transform = "translateX(" + tickerX + "px)";
     }
@@ -382,109 +310,33 @@
   }
   requestAnimationFrame(runTicker);
 
-  /* ---------- now playing ---------- */
+  /* ---------- now playing + phone remote ---------- */
 
-  function fmtDur(ms) {
-    var m = Math.floor(ms / 60000), h = Math.floor(m / 60);
-    return h ? h + "h " + (m % 60) + "m" : m + "m";
-  }
-
+  var np = {};
   function refreshNowPlaying() {
-    var np = {};
-    try { np = JSON.parse(call("nowPlaying") || "{}"); } catch (e) {}
-    var card = document.getElementById("np");
-    if (np.error || np.access === false) {
-      // Show why, instead of hiding quietly (helps us debug on the TV).
-      card.classList.remove("hidden");
-      setText("np-app", "Now playing");
-      setText("np-title", np.access === false && !np.error ? "Needs the one-time setup" : "Can't read it yet");
-      setText("np-sub", np.error ? String(np.error) : "");
-      document.getElementById("np-fill").style.width = "0";
-      setText("np-state", "");
-      return;
-    }
-    if (!np.title && !np.app) { card.classList.add("hidden"); return; }
-    card.classList.remove("hidden");
-    setText("np-app", np.state === "playing" ? "Now playing · " + (np.app || "") : (np.app || ""));
-    setText("np-title", np.title || np.app || "");
-    setText("np-sub", np.subtitle || "");
-    var pct = np.duration > 0 ? Math.min(100, 100 * np.position / np.duration) : 0;
-    document.getElementById("np-fill").style.width = pct + "%";
-    var left = np.duration > 0 ? fmtDur(np.duration - np.position) + " left" : "";
-    setText("np-state", (np.state === "paused" ? "Paused" : np.state === "playing" ? "Playing" : "") + (left ? " · " + left : "") + " · ⏯ on the remote");
+    np = json("nowPlaying", {});
+    var box = document.getElementById("np");
+    if (!np.title && !np.app) { box.classList.add("hidden"); return; }
+    box.classList.remove("hidden");
+    setText("np-app", (np.state === "playing" ? "Now playing · " : np.state === "paused" ? "Paused · " : "") + (np.app || ""));
+    setText("np-title", [np.subtitle, np.title].filter(Boolean).join(" · "));
+    document.getElementById("np-fill").style.width = (np.duration > 0 ? Math.min(100, 100 * np.position / np.duration) : 0) + "%";
   }
-  refreshNowPlaying();
-  setInterval(refreshNowPlaying, 5000);
-
-  /* ---------- phone remote QR ---------- */
-
   var remoteUrl = "";
   function refreshRemote() {
-    var st = {};
-    try { st = JSON.parse(call("status") || "{}"); } catch (e) {}
-    var card = document.getElementById("remote");
-    if (!st.remote || typeof qrcode === "undefined") { card.classList.add("hidden"); return; }
+    var st = json("status", {});
+    var box = document.getElementById("remote");
+    if (!st.remote || typeof qrcode === "undefined") { box.classList.add("hidden"); return; }
     if (st.remote === remoteUrl) return;
     remoteUrl = st.remote;
     var qr = qrcode(0, "M");
     qr.addData(remoteUrl);
     qr.make();
     document.getElementById("qr").innerHTML = qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
-    card.classList.remove("hidden");
-  }
-  refreshRemote();
-  setInterval(refreshRemote, 60 * 1000);
-
-  /* ---------- rows ---------- */
-
-  var rows = []; // [{el: tilesEl, section: sectionEl, tiles: [tileEl...]}]
-  var focus = { r: 0, c: 0 };
-  var liveItems = [];
-
-  function sortApps(list) {
-    var seen = {};
-    list = list.filter(function (a) {
-      if (seen[a.pkg] || HIDDEN.indexOf(a.pkg) >= 0) return false;
-      seen[a.pkg] = true;
-      return true;
-    });
-    return list.sort(function (a, b) {
-      var ia = PREFERRED.indexOf(a.pkg), ib = PREFERRED.indexOf(b.pkg);
-      if (ia >= 0 || ib >= 0) return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib);
-      return a.label.localeCompare(b.label);
-    });
+    box.classList.remove("hidden");
   }
 
-  function appTile(app) {
-    var t = document.createElement("div");
-    t.className = "tile";
-    var art = call("icon", app.pkg);
-    var isBanner = art && art.indexOf("banner:") === 0;
-    if (isBanner) {
-      t.innerHTML = '<img alt="">';
-      t.firstChild.src = art.slice(7);
-    } else {
-      t.innerHTML = '<div class="icon-wrap">' + (art ? '<img alt="">' : "") + '<div class="name"></div></div>';
-      if (art) t.querySelector("img").src = art.replace(/^icon:/, "");
-      t.querySelector(".name").textContent = app.label;
-    }
-    t.onActivate = function () {
-      var r = call("launch", app.pkg);
-      if (r !== "ok") toast("Couldn't open " + app.label);
-    };
-    return t;
-  }
-
-  function textTile(name, sub, onActivate, live) {
-    var t = document.createElement("div");
-    t.className = "tile" + (live ? "" : " small");
-    t.innerHTML = (live ? '<div class="live-dot">LIVE</div>' : "") +
-      '<div class="icon-wrap"><div class="name"></div><div class="sub"></div></div>';
-    t.querySelector(".name").textContent = name;
-    t.querySelector(".sub").textContent = sub || "";
-    t.onActivate = onActivate;
-    return t;
-  }
+  /* ---------- the guide ---------- */
 
   function ago(ms) {
     var m = Math.round((Date.now() - ms) / 60000);
@@ -495,162 +347,227 @@
     var d = Math.round(h / 24);
     return d === 1 ? "yesterday" : d + " days ago";
   }
-
-  function watchedTile(w) {
-    var t = document.createElement("div");
-    t.className = "tile watched";
-    var show = w.subtitle || w.title, ep = w.subtitle ? w.title : "";
-    var pct = w.duration > 0 ? Math.min(100, 100 * w.position / w.duration) : 0;
-    t.innerHTML = '<div><div class="w-app"></div><div class="w-show"></div><div class="w-ep"></div></div>' +
-      '<div><div class="w-bar"><div></div></div><div class="w-when"></div></div>';
-    t.querySelector(".w-app").textContent = w.app || "";
-    t.querySelector(".w-show").textContent = show;
-    t.querySelector(".w-ep").textContent = ep;
-    t.querySelector(".w-bar div").style.width = pct + "%";
-    t.querySelector(".w-when").textContent = ago(w.at) + " · Opens " + (w.app || "the app");
-    t.onActivate = function () {
-      // No links into the app (HBO Max hangs on them). Resume if it's still loaded, otherwise open the app.
-      var r = bridge.resume ? call("resume", w.pkg, "", "") : call("launch", w.pkg);
-      if (r === "resumed") { toast("Picking up " + show + " in " + (w.app || "the app")); return; }
-      if (r === "app" || r === "ok") toast("Opening " + (w.app || "the app") + " · " + show + " is under Continue Watching");
-      else toast("Couldn't open " + (w.app || "the app"));
-    };
-    return t;
+  function sortApps(list) {
+    var seen = {};
+    list = list.filter(function (a) { if (seen[a.pkg] || HIDDEN.indexOf(a.pkg) >= 0) return false; seen[a.pkg] = 1; return true; });
+    return list.sort(function (a, b) {
+      var ia = PREFERRED.indexOf(a.pkg), ib = PREFERRED.indexOf(b.pkg);
+      if (ia >= 0 || ib >= 0) return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib);
+      return a.label.localeCompare(b.label);
+    });
+  }
+  var artCache = {};
+  function art(pkg) { if (!(pkg in artCache)) artCache[pkg] = call("icon", pkg) || ""; return artCache[pkg]; }
+  function appPreview(pkg, label, kicker) {
+    var a = art(pkg);
+    if (a && a.indexOf("banner:") === 0) return { type: "banner", src: a.slice(7) };
+    if (a && a.indexOf("icon:") === 0) return { type: "banner", src: a.slice(5) };
+    return { type: "card", kicker: kicker || "App", title: label };
   }
 
-  function channelTile(ch, i, list) {
-    var t = document.createElement("div");
-    t.className = "tile channel";
-    t.innerHTML = '<div class="ch-img"></div><div class="ch-bar"></div><div class="ch-text"><div class="ch-kicker"></div><div class="ch-name"></div><div class="ch-about"></div></div>';
-    if (ch.photo) t.querySelector(".ch-img").style.backgroundImage = "url('" + ch.photo.replace(/'/g, "%27") + "')";
-    t.querySelector(".ch-bar").style.background = ch.color;
-    t.querySelector(".ch-kicker").style.color = ch.color;
-    t.querySelector(".ch-kicker").textContent = i === 0 ? "Channel 1" : "Channel " + (i + 1);
-    t.querySelector(".ch-name").textContent = ch.name;
-    t.querySelector(".ch-about").textContent = ch.about;
-    t.onActivate = function () {
-      var r = bridge.watch ? call("watch", JSON.stringify(list.map(function (c) { return { url: c.url, name: c.name }; })), i) : call("view", ch.url);
-      if (r !== "ok") toast("Couldn't open " + ch.name);
-    };
-    return t;
+  // All of Regular's channels (station first), for flipping with ◀ ▶ while watching.
+  function channelList() {
+    return [{ name: "Santa Cruz", url: STATION_PAGE }].concat(town.channels.map(function (c) { return { name: c.name, url: c.url }; }));
+  }
+  function watchChannel(i) {
+    var list = channelList();
+    var r = bridge.watch ? call("watch", JSON.stringify(list), i) : call("view", list[i].url);
+    if (r !== "ok") toast("Couldn't open " + list[i].name);
+  }
+  function livePreview(url, photo, credit) {
+    return settings.preview === "live" && inShell ? { type: "live", url: url, photo: photo, credit: credit } : { type: "photo", url: photo, credit: credit };
   }
 
-  function eventTile(e) {
-    var t = document.createElement("div");
-    t.className = "tile event";
-    t.innerHTML = '<div class="ev-img"></div><div class="ev-text"><div class="ev-time"></div><div class="ev-title"></div><div class="ev-place"></div></div>';
-    if (e.photo) t.querySelector(".ev-img").style.backgroundImage = "url('" + e.photo.replace(/'/g, "%27") + "')";
-    var time = t.querySelector(".ev-time");
-    time.textContent = e.now ? "On now" : (e.time || "Tonight");
-    if (e.now) time.classList.add("now");
-    t.querySelector(".ev-title").textContent = e.title || "";
-    t.querySelector(".ev-place").textContent = e.place || "";
-    t.onActivate = function () {
-      if (!e.url) return;
-      var r = call("view", e.url);
-      if (r !== "ok") toast("Couldn't open " + (e.place || "it"));
-    };
-    return t;
-  }
+  var rows = [];
+  function buildGuide() {
+    var out = [];
 
-  function liveTile(item) {
-    return textTile(item.title, item.sub, function () {
-      var r = item.kind === "youtube" ? call("openUrl", item.url, "") : call("view", item.url);
-      if (r !== "ok") toast("Couldn't open " + item.title + (r ? " (" + r + ")" : ""));
-    }, true);
-  }
-
-  function loadLive() {
-    return getJSON("live.json?t=" + Date.now()).then(function (j) {
-      liveItems = j.items || [];
-      buildRows();
-    }).catch(function () {});
-  }
-
-  function fill(id, tiles) {
-    var el = document.getElementById(id);
-    el.innerHTML = "";
-    tiles.forEach(function (t) { el.appendChild(t); });
-    document.getElementById("row-" + id).classList.toggle("hidden", !tiles.length);
-  }
-
-  function buildRows() {
-    var keep = rows[focus.r] ? rows[focus.r].el.id : null;
-
-    var watched = [];
-    try { watched = (JSON.parse(call("history") || "{}").items || []); } catch (e) {}
-    fill("watched", watched.slice(0, 10).map(watchedTile));
-
-    var chans = town.channels.length ? [{ id: "town", name: "Santa Cruz", about: "All of the town's channels, mixed by time of day",
-      color: "#5bc4e3", photo: town.photos[0] && town.photos[0].url, url: STATION_PAGE }].concat(town.channels) : [];
-    fill("channels", chans.map(function (c, i) { return channelTile(c, i, chans); }));
-
-    fill("tonight", town.events.slice(0, 10).map(eventTile));
-
-    var recent = [];
-    try { recent = JSON.parse(call("recent") || "[]"); } catch (e) {}
-    fill("recent", recent.slice(0, 8).map(appTile));
-
-    fill("live", [{ title: "Santa Cruz right now", sub: "Regular TV town station", kind: "page", url: STATION_PAGE }]
-      .concat(liveItems).map(liveTile));
-
-    var apps = [];
-    try { apps = sortApps(JSON.parse(call("apps") || "[]")); } catch (e) {}
-    fill("apps", apps.map(appTile));
-
-    var inputs = [];
-    try { inputs = JSON.parse(call("inputs") || "[]"); } catch (e) {}
-    var inputTiles = inputs.map(function (i) {
-      return textTile(i.label, "Input", function () {
-        var r = call("openInput", i.id);
-        if (r !== "ok") toast("Couldn't switch to " + i.label + (r ? " (" + r + ")" : ""));
+    // 02 Your shows: what you watched, then the apps you've used
+    var shows = [];
+    (json("history", {}).items || []).slice(0, 8).forEach(function (w) {
+      var show = w.subtitle || w.title, ep = w.subtitle ? w.title : "";
+      shows.push({
+        t: show, s: [ep, w.app, ago(w.at)].filter(Boolean).join(" · "),
+        kicker: (w.app || "") + " · " + ago(w.at), title: show, sub: (ep ? ep + " · " : "") + "Opens " + (w.app || "the app"),
+        preview: appPreview(w.pkg, show, w.app),
+        act: function () {
+          var r = bridge.resume ? call("resume", w.pkg, "", "") : call("launch", w.pkg);
+          if (r === "resumed") toast("Picking up " + show);
+          else if (r === "app" || r === "ok") toast("Opening " + (w.app || "the app") + " · " + show + " is under Continue Watching");
+          else toast("Couldn't open " + (w.app || "the app"));
+        }
       });
     });
-    inputTiles.push(textTile("Settings", "Fire TV", function () {
-      if (call("settings") !== "ok") toast("Couldn't open settings");
-    }));
-    fill("inputs", inputTiles);
-
-    rows = ["watched", "channels", "tonight", "recent", "live", "apps", "inputs"].map(function (id) {
-      var el = document.getElementById(id);
-      return { el: el, section: document.getElementById("row-" + id), tiles: Array.prototype.slice.call(el.querySelectorAll(".tile")) };
-    }).filter(function (r) { return r.tiles.length; });
-
-    var again = keep ? rows.map(function (r) { return r.el.id; }).indexOf(keep) : -1;
-    focus.r = again >= 0 ? again : Math.min(focus.r, rows.length - 1);
-    focus.c = Math.min(focus.c, rows[focus.r].tiles.length - 1);
-    paintFocus();
-  }
-
-  function paintFocus() {
-    rows.forEach(function (row, ri) {
-      row.tiles.forEach(function (t, ci) {
-        t.classList.toggle("focus", ri === focus.r && ci === focus.c);
-      });
-      // Slide the row sideways so the focused tile stays on screen.
-      var idx = ri === focus.r ? focus.c : (row.lastC || 0);
-      var tile = row.tiles[idx];
-      var visible = 1920 - 96 * 2;
-      var offset = 0;
-      if (tile) {
-        var right = tile.offsetLeft + tile.offsetWidth;
-        if (right > visible - 40) offset = right - visible + 40;
-      }
-      row.el.style.transform = "translateX(" + (-offset) + "px)";
-      if (ri === focus.r) row.lastC = focus.c;
+    json("recent", []).slice(0, 6).forEach(function (a) {
+      shows.push({ t: a.label, s: "Recent app", kicker: "Recent app", title: a.label, sub: "Opens " + a.label, preview: appPreview(a.pkg, a.label), act: function () { launch(a); } });
     });
-    var ch = document.getElementById("osd-ch");
-    if (ch) ch.textContent = "CH " + String(focus.r + 2).padStart(2, "0");
-    // Slide the list up so the focused row stays in the window above the ticker.
-    var cur = rows[focus.r];
-    if (cur) {
-      var windowH = 1080 - 440 - 76;
-      var top = cur.section.offsetTop, bottom = top + cur.section.offsetHeight + 30;
-      var shift = Math.max(0, bottom - windowH);
-      if (focus.r === 0) shift = 0;
-      document.getElementById("rows").style.transform = "translateY(" + (-shift) + "px)";
+    if (!shows.length) shows.push({ t: "Nothing yet", s: "Watch something and it shows up here", title: "Your shows", sub: "Watch something and it shows up here", preview: { type: "card", kicker: "Your shows", title: "Nothing yet" } });
+    out.push({ num: "02", name: "Your shows", color: "#ffd23f", cells: shows });
+
+    // 03 Santa Cruz: the town station and the cams
+    var photo0 = town.photos[0] || {};
+    var sc = [{ t: "Santa Cruz right now", s: "Regular TV · all channels", now: true, kicker: "Regular TV · Channel 1", title: "Santa Cruz right now",
+      sub: "The whole town's channels, mixed by time of day", preview: livePreview(STATION_PAGE, photo0.url, photo0.credit), act: function () { watchChannel(0); } }];
+    liveItems.forEach(function (it) {
+      sc.push({ t: it.title, s: it.sub || "Live cam", now: true, kicker: "Live", title: it.title, sub: it.sub || "",
+        preview: { type: "card", kicker: "Live cam", title: it.title },
+        act: function () {
+          var r = it.kind === "youtube" ? call("openUrl", it.url, "") : call("view", it.url);
+          if (r !== "ok") toast("Couldn't open " + it.title);
+        } });
+    });
+    out.push({ num: "03", name: "Santa Cruz", color: "#5bc4e3", cells: sc });
+
+    // 04 Tonight
+    if (town.events.length) {
+      out.push({ num: "04", name: "Tonight", color: "#ec5b70", cells: town.events.slice(0, 10).map(function (e) {
+        return { t: e.title, s: (e.now ? "On now" : e.time || "Tonight") + (e.place ? " · " + e.place : ""), now: e.now,
+          kicker: e.now ? "On now" : e.time || "Tonight", title: e.title, sub: e.place || "",
+          preview: e.photo ? { type: "photo", url: e.photo, credit: e.credit } : { type: "card", kicker: "Tonight", title: e.title },
+          act: function () { if (e.url && call("view", e.url) !== "ok") toast("Couldn't open " + (e.place || "it")); } };
+      }) });
     }
+
+    // 05+ Regular's channels, one row each
+    town.channels.forEach(function (ch, i) {
+      var num = String(5 + i).padStart(2, "0");
+      var pv = livePreview(ch.url, ch.photo, ch.credit);
+      var cells = [{ t: "Watch " + ch.name, s: ch.about, now: true, kicker: "Regular TV · " + ch.name, title: ch.name, sub: ch.about, preview: pv, act: function () { watchChannel(i + 1); } }];
+      ch.items.slice(0, 6).forEach(function (it) {
+        cells.push({ t: it.t, s: it.s, now: it.now, kicker: ch.name, title: it.t, sub: it.s,
+          preview: it.photo ? { type: "photo", url: it.photo } : pv, act: function () { watchChannel(i + 1); } });
+      });
+      out.push({ num: num, name: ch.name, color: ch.color, cells: cells });
+    });
+
+    // 20 Apps, 21 Inputs
+    var apps = sortApps(json("apps", []));
+    out.push({ num: "20", name: "Apps", color: "#c9d2ff", cells: apps.map(function (a) {
+      return { t: a.label, s: "App", kicker: "App", title: a.label, sub: "Opens " + a.label, preview: appPreview(a.pkg, a.label), act: function () { launch(a); } };
+    }) });
+    var inputs = json("inputs", []).map(function (i) {
+      return { t: i.label, s: "Input", kicker: "Input", title: i.label, sub: "Switch the TV to " + i.label, preview: { type: "card", kicker: "Input", title: i.label },
+        act: function () { var r = call("openInput", i.id); if (r !== "ok") toast("Couldn't switch to " + i.label + " (" + r + ")"); } };
+    });
+    inputs.push({ t: "Settings", s: "Fire TV", kicker: "Settings", title: "Settings", sub: "Fire TV settings", preview: { type: "card", kicker: "Fire TV", title: "Settings" },
+      act: function () { if (call("settings") !== "ok") toast("Couldn't open settings"); } });
+    out.push({ num: "21", name: "Inputs", color: "#c9d2ff", cells: inputs });
+
+    // Keep focus on the same channel if it still exists
+    var keepNum = rows[focus.r] ? rows[focus.r].num : null;
+    rows = out.filter(function (r) { return r.cells.length; });
+    var again = keepNum ? rows.map(function (r) { return r.num; }).indexOf(keepNum) : -1;
+    focus.r = again >= 0 ? again : Math.min(focus.r, rows.length - 1);
+    focus.c = Math.min(focus.c, rows[focus.r].cells.length - 1);
+    renderGuide();
   }
+
+  function launch(a) { if (call("launch", a.pkg) !== "ok") toast("Couldn't open " + a.label); }
+
+  var focus = { r: 0, c: 0 };
+  var VISIBLE_ROWS = 5, ROW_H = 76;
+  var rowsEl = document.getElementById("guide-rows");
+
+  function renderGuide() {
+    rowsEl.innerHTML = "";
+    rows.forEach(function (row, ri) {
+      var r = document.createElement("div");
+      r.className = "g-row";
+      var chan = document.createElement("div");
+      chan.className = "g-chan";
+      chan.style.borderLeftColor = row.color;
+      chan.innerHTML = '<span class="g-num"></span><span class="g-name"></span>';
+      chan.querySelector(".g-num").textContent = row.num;
+      chan.querySelector(".g-name").textContent = row.name;
+      var track = document.createElement("div");
+      track.className = "g-track";
+      var cells = document.createElement("div");
+      cells.className = "g-cells";
+      row.cells.forEach(function (c) {
+        var el = document.createElement("div");
+        el.className = "g-cell" + (c.now ? " now" : "");
+        el.innerHTML = '<div class="t"></div><div class="s"></div>';
+        el.querySelector(".t").textContent = c.t;
+        el.querySelector(".s").textContent = c.s || "";
+        cells.appendChild(el);
+      });
+      track.appendChild(cells);
+      r.appendChild(chan);
+      r.appendChild(track);
+      rowsEl.appendChild(r);
+      row.el = r;
+      row.cellsEl = cells;
+    });
+    paint();
+  }
+
+  var rowStart = 0;
+  function paint() {
+    rows.forEach(function (row, ri) {
+      var active = ri === focus.r;
+      row.el.classList.toggle("active", active);
+      var kids = row.cellsEl.children, idx = active ? focus.c : (row.lastC || 0);
+      for (var i = 0; i < kids.length; i++) kids[i].classList.toggle("focus", active && i === focus.c);
+      // Slide the row sideways: keep the focused cell in view
+      var cellW = 366, trackW = 1800 - 266;
+      var offset = Math.max(0, (idx + 1) * cellW - trackW + 20);
+      row.cellsEl.style.transform = "translateX(" + (-offset) + "px)";
+      if (active) row.lastC = focus.c;
+    });
+    // Slide the guide up/down: keep the focused row in the window
+    if (focus.r < rowStart) rowStart = focus.r;
+    if (focus.r >= rowStart + VISIBLE_ROWS) rowStart = focus.r - VISIBLE_ROWS + 1;
+    rowsEl.style.transform = "translateY(" + (-rowStart * ROW_H) + "px)";
+    highlight();
+  }
+
+  function cur() { return rows[focus.r] && rows[focus.r].cells[focus.c]; }
+
+  function highlight() {
+    var row = rows[focus.r], c = cur();
+    if (!row || !c) return;
+    setText("hl-kicker", row.num + " · " + (c.kicker || row.name));
+    setText("hl-title", c.title || c.t);
+    setText("hl-sub", c.sub || c.s || "");
+    setText("hl-hint", c.act ? "OK ▸ " + (row.num === "20" ? "open" : row.num === "21" ? "switch" : "watch") : "");
+    setText("pv-ch", "CH " + row.num);
+    showPreview(c.preview || { type: "card", kicker: row.name, title: c.title || c.t });
+  }
+
+  /* ---------- the preview window ---------- */
+
+  var pvTimer = null, pvLiveUrl = "";
+  var pv = {
+    photo: document.getElementById("pv-photo"),
+    live: document.getElementById("pv-live"),
+    card: document.getElementById("pv-card"),
+    banner: document.getElementById("pv-banner")
+  };
+  function only(which) { Object.keys(pv).forEach(function (k) { pv[k].classList.toggle("on", k === which); }); }
+
+  function showPreview(p) {
+    clearTimeout(pvTimer);
+    setText("pv-credit", p.credit || "");
+    if (p.type === "live") {
+      if (pvLiveUrl === p.url && pv.live.classList.contains("on")) return;
+      // Show the channel's photo right away; start the live channel once you've stayed a moment.
+      if (p.photo) { setPhoto(p.photo); only("photo"); } else { cardPreview("Regular TV", ""); }
+      pvTimer = setTimeout(function () {
+        if (pvLiveUrl !== p.url) { pvLiveUrl = p.url; pv.live.src = p.url; }
+        pv.live.onload = function () { only("live"); setText("pv-credit", ""); };
+        setTimeout(function () { if (pvLiveUrl === p.url) { only("live"); setText("pv-credit", ""); } }, 2500);
+      }, 900);
+      return;
+    }
+    if (pvLiveUrl) { pvLiveUrl = ""; pv.live.src = "about:blank"; }
+    if (p.type === "photo" && p.url) { setPhoto(p.url); only("photo"); }
+    else if (p.type === "banner" && p.src) { pv.banner.src = p.src; only("banner"); }
+    else cardPreview(p.kicker || "", p.title || "");
+  }
+  function setPhoto(url) { pv.photo.style.backgroundImage = "url('" + String(url).replace(/'/g, "%27") + "')"; }
+  function cardPreview(kicker, title) { setText("pv-card-kicker", kicker); setText("pv-card-title", title); only("card"); }
+
+  /* ---------- keys ---------- */
 
   function move(dr, dc) {
     if (!rows.length) return;
@@ -658,75 +575,57 @@
       var nr = focus.r + dr;
       if (nr < 0 || nr >= rows.length) return;
       focus.r = nr;
-      focus.c = Math.min(rows[nr].lastC || 0, rows[nr].tiles.length - 1);
+      focus.c = Math.min(rows[nr].lastC || 0, rows[nr].cells.length - 1);
     } else {
       var nc = focus.c + dc;
-      if (nc < 0 || nc >= rows[focus.r].tiles.length) return;
+      if (nc < 0 || nc >= rows[focus.r].cells.length) return;
       focus.c = nc;
     }
-    paintFocus();
+    paint();
   }
 
-  function activate() {
-    var t = rows[focus.r] && rows[focus.r].tiles[focus.c];
-    if (t && t.onActivate) t.onActivate();
-  }
+  document.addEventListener("keydown", function (e) {
+    if (wake()) { e.preventDefault(); return; }
+    switch (e.key || e.keyCode) {
+      case "ArrowLeft": case 37: move(0, -1); break;
+      case "ArrowRight": case 39: move(0, 1); break;
+      case "ArrowUp": case 38: move(-1, 0); break;
+      case "ArrowDown": case 40: move(1, 0); break;
+      case "Enter": case 13: case " ": var c = cur(); if (c && c.act) c.act(); break;
+      default: return;
+    }
+    e.preventDefault();
+  });
 
-  /* ---------- idle / ambient ---------- */
+  /* ---------- idle ---------- */
 
-  // Idle: big clock (and the note) after 5 minutes; the Regular town station after 15.
   var idleTimer, stationTimer;
-  var STATION_AFTER_MS = 15 * 60 * 1000;
   function wake() {
     var wasIdle = document.body.classList.contains("idle");
     document.body.classList.remove("idle");
     clearTimeout(idleTimer);
     clearTimeout(stationTimer);
     idleTimer = setTimeout(function () { document.body.classList.add("idle"); }, IDLE_MS);
-    if (window.HouseTV) {
+    if (inShell) {
       stationTimer = setTimeout(function () {
-        var np = {};
-        try { np = JSON.parse(call("nowPlaying") || "{}"); } catch (e) {}
-        if (np.state !== "playing") call("view", STATION_PAGE);
+        if (json("nowPlaying", {}).state !== "playing") call("view", STATION_PAGE);
       }, STATION_AFTER_MS);
     }
     return wasIdle;
   }
-  wake();
-
-  /* ---------- keys ---------- */
-
-  document.addEventListener("keydown", function (e) {
-    if (wake()) { e.preventDefault(); return; } // first press just wakes the screen
-    switch (e.key || e.keyCode) {
-      case "ArrowLeft": case 37: move(0, -1); break;
-      case "ArrowRight": case 39: move(0, 1); break;
-      case "ArrowUp": case 38: move(-1, 0); break;
-      case "ArrowDown": case 40: move(1, 0); break;
-      case "Enter": case 13: case " ": activate(); break;
-      default: return;
-    }
-    e.preventDefault();
-  });
 
   // Called by the Android shell.
-  window.houseBack = function () {
-    if (!wake()) { focus.r = 0; focus.c = 0; paintFocus(); }
-  };
-  window.houseHome = function () { wake(); focus.r = 0; focus.c = 0; paintFocus(); };
-  window.houseResume = function () { wake(); buildRows(); tick(); };
+  window.houseBack = function () { if (!wake()) { focus.r = 0; focus.c = 0; paint(); } };
+  window.houseHome = function () { wake(); focus.r = 0; focus.c = 0; paint(); };
+  window.houseResume = function () { wake(); artCache = {}; buildGuide(); tick(); refreshNowPlaying(); };
 
   /* ---------- helpers ---------- */
 
   function getJSON(url) {
-    return fetch(url, { cache: "no-store" }).then(function (r) {
-      if (!r.ok) throw new Error(r.status);
-      return r.json();
-    });
+    return fetch(url, { cache: "no-store" }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); });
   }
   function setText(id, s) { var el = document.getElementById(id); if (el && el.textContent !== s) el.textContent = s; }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
-
   var toastTimer;
   function toast(msg) {
     var el = document.getElementById("toast");
@@ -736,7 +635,20 @@
     toastTimer = setTimeout(function () { el.classList.remove("show"); }, 2600);
   }
 
-  buildRows();
+  /* ---------- start ---------- */
+
+  wake();
+  buildGuide();
+  loadSettings();
+  refreshConditions();
+  loadTown();
   loadLive();
-  setInterval(function () { if (!document.body.classList.contains("idle")) buildRows(); }, 60 * 1000);
+  refreshNowPlaying();
+  refreshRemote();
+  setInterval(refreshConditions, 15 * 60 * 1000);
+  setInterval(loadSettings, 10 * 60 * 1000);
+  setInterval(loadTown, 10 * 60 * 1000);
+  setInterval(refreshNowPlaying, 5000);
+  setInterval(refreshRemote, 60 * 1000);
+  setInterval(function () { if (!document.body.classList.contains("idle")) buildGuide(); }, 2 * 60 * 1000);
 })();

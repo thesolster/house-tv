@@ -1,116 +1,96 @@
-/* Retro theme: a 70s/80s living-room set. Turned on by "theme": "retro" in ticker.json. */
-
-#crt, #osd { display: none; }
+/* Retro skin: the late-80s cable guide channel. Turned on by "theme": "retro" in ticker.json. */
 
 body.retro {
-  --bg: #1a0f08;
-  --bg-2: #2a180c;
-  --ink: #fbe7c6;
-  --ink-2: #e8b77a;
-  --ink-3: #b98a5a;
-  --accent: #ffb000;
-  --accent-2: #e2562a;
-  --line: rgba(251, 231, 198, 0.18);
-  --tile: #2b1a0e;
+  --bg: #0b0d3a;
+  --bg-2: #141866;
+  --panel: #1a1f7a;
+  --ink: #ffffff;
+  --ink-2: #c9d2ff;
+  --ink-3: #8f9bdc;
+  --accent: #ffd23f;
+  --accent-2: #ff5a36;
+  --line: rgba(255, 255, 255, 0.18);
+  --cell: #12166a;
+  --cell-focus: #2b33b8;
   --serif: "Righteous", "Arial Black", sans-serif;
   --sans: "VT323", "Courier New", monospace;
   --pixel: "Press Start 2P", "Courier New", monospace;
   --vcr: #7dff8a;
+  --clock-color: var(--vcr);
   --stripe: linear-gradient(180deg, #ffd23f 0 20%, #ff9f1c 20% 40%, #f25c19 40% 60%, #c2341c 60% 80%, #7a2c12 80% 100%);
 }
 body.retro, body.retro #stage { background: var(--bg); }
 
-/* The glass: scanlines, a soft curved-tube vignette, a faint flicker. */
+/* The glass */
 body.retro #crt {
   display: block; position: absolute; inset: 0; pointer-events: none; z-index: 50;
   background:
-    repeating-linear-gradient(180deg, rgba(0,0,0,0) 0 2px, rgba(0,0,0,0.22) 2px 4px),
-    radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,0.55) 100%);
+    repeating-linear-gradient(180deg, rgba(0,0,0,0) 0 2px, rgba(0,0,0,0.20) 2px 4px),
+    radial-gradient(ellipse at center, rgba(0,0,0,0) 58%, rgba(0,0,0,0.55) 100%);
   border-radius: 48px / 40px;
-  box-shadow: inset 0 0 120px rgba(0,0,0,0.75), inset 0 0 0 14px #0b0603;
+  box-shadow: inset 0 0 120px rgba(0,0,0,0.7), inset 0 0 0 14px #050616;
   animation: flicker 6s infinite steps(1);
 }
 @keyframes flicker { 0%, 100% { opacity: 1; } 47% { opacity: 0.93; } 48% { opacity: 1; } 83% { opacity: 0.96; } }
 
-/* Warm glow instead of the modern one */
-body.retro #glow {
-  background:
-    radial-gradient(900px 520px at 80% -10%, rgba(255,159,28,0.28), transparent 70%),
-    radial-gradient(800px 600px at -10% 110%, rgba(194,52,28,0.22), transparent 70%);
-}
+/* Preview window: a little TV inside the TV */
+body.retro #preview { border: 6px solid #c9d2ff; border-radius: 28px; box-shadow: 8px 8px 0 #000; }
+body.retro #pv-photo { filter: sepia(0.35) saturate(1.25) contrast(1.05); }
+body.retro #pv-card { background: var(--stripe); }
+body.retro #pv-card-kicker { font-family: var(--pixel); font-size: 18px; color: #0b0d3a; letter-spacing: 0.04em; }
+body.retro #pv-card-title { font-family: var(--serif); font-weight: 400; color: #0b0d3a; }
+body.retro #pv-banner { background: radial-gradient(circle at center, #2b33b8, #0b0d3a); }
+body.retro #pv-ch { font-family: var(--sans); font-size: 52px; font-weight: 400; color: var(--vcr); text-shadow: 0 0 10px rgba(125,255,138,0.7), 2px 2px 0 #000; }
+body.retro #pv-credit { font-family: var(--sans); font-size: 20px; }
 
-/* Town photos: faded Kodachrome */
-body.retro #photo .ph { filter: sepia(0.65) saturate(1.3) contrast(1.05) hue-rotate(-8deg); }
-body.retro #photo .ph.on { opacity: 0.5; }
-body.retro #photo-credit { font-family: var(--sans); font-size: 20px; }
-
-/* Top bar */
-body.retro .where .label { font-family: var(--pixel); font-size: 18px; letter-spacing: 0.1em; color: var(--accent); text-shadow: 3px 3px 0 #7a2c12; }
-body.retro .where .place { font-family: var(--sans); font-size: 34px; }
-body.retro #build { font-family: var(--sans); font-size: 18px; }
-body.retro #clock { font-family: var(--sans); font-size: 104px; color: var(--vcr); text-shadow: 0 0 12px rgba(125,255,138,0.6), 2px 0 0 rgba(255,0,80,0.35), -2px 0 0 rgba(0,180,255,0.35); letter-spacing: 0.04em; }
-body.retro #date { font-family: var(--sans); font-size: 34px; color: var(--vcr); opacity: 0.85; text-transform: uppercase; }
-
-/* VCR on-screen display */
-body.retro #osd { display: flex; gap: 28px; position: absolute; left: 96px; top: 168px; z-index: 40; font-family: var(--sans); font-size: 40px; color: var(--vcr); text-shadow: 0 0 10px rgba(125,255,138,0.6); letter-spacing: 0.06em; }
-body.retro #osd-play { animation: blink 1.6s infinite steps(1); }
-@keyframes blink { 50% { opacity: 0; } }
-body.retro.idle #osd { opacity: 0; }
-
-/* Greeting: big chunky title card with a color-fringe */
-body.retro #hero { top: 230px; }
-body.retro #greeting { font-family: var(--serif); font-weight: 400; font-size: 104px; letter-spacing: 0.01em;
-  background: var(--stripe); -webkit-background-clip: text; background-clip: text; color: transparent;
-  filter: drop-shadow(5px 5px 0 #3a1a0a); }
-body.retro #summary { font-family: var(--sans); font-size: 40px; color: var(--ink); }
-body.retro .note { font-family: var(--serif); font-style: normal; color: #ff7aa2; text-shadow: 3px 3px 0 #4a1020; }
-body.retro #note { font-size: 38px; }
-body.retro #ambient-note { font-size: 56px; }
-
-/* Cards on the right */
-body.retro .card { background: #2b1a0e; border: 3px solid #ffb000; border-radius: 22px; box-shadow: 6px 6px 0 #7a2c12; }
-body.retro .np-app { font-family: var(--pixel); font-size: 14px; letter-spacing: 0.06em; }
-body.retro .np-title { font-family: var(--serif); font-weight: 400; font-size: 36px; }
-body.retro .np-sub, body.retro .np-state { font-family: var(--sans); font-size: 28px; }
+/* Info panel */
+body.retro #clock { font-family: var(--sans); font-size: 92px; text-shadow: 0 0 12px rgba(125,255,138,0.55), 2px 0 0 rgba(255,0,80,0.35), -2px 0 0 rgba(0,180,255,0.35); }
+body.retro #date { font-family: var(--sans); font-size: 30px; color: var(--vcr); text-transform: uppercase; }
+body.retro #weather { font-family: var(--sans); font-size: 30px; text-transform: uppercase; }
+body.retro .note { font-family: var(--serif); font-style: normal; color: #ff7aa2; text-shadow: 2px 2px 0 #3a0820; }
+body.retro #note { font-size: 30px; }
+body.retro #hl-kicker { font-family: var(--pixel); font-size: 15px; letter-spacing: 0.04em; }
+body.retro #hl-title { font-family: var(--serif); font-weight: 400; font-size: 56px;
+  background: var(--stripe); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(3px 3px 0 #000); }
+body.retro #hl-sub { font-family: var(--sans); font-size: 32px; }
+body.retro #hl-hint { font-family: var(--sans); font-size: 26px; color: var(--vcr); }
+body.retro #np { background: var(--panel); border: 3px solid #c9d2ff; border-radius: 0; }
+body.retro #np-app { font-family: var(--pixel); font-size: 12px; letter-spacing: 0.04em; }
+body.retro #np-title { font-family: var(--sans); font-size: 30px; font-weight: 400; }
 body.retro #np-fill { background: var(--stripe); }
-body.retro .remote-title { font-family: var(--pixel); font-size: 14px; line-height: 1.5; }
-body.retro .remote-sub { font-family: var(--sans); font-size: 22px; }
+body.retro .remote-text { font-family: var(--sans); font-size: 24px; }
 
-/* Rows and tiles */
-body.retro .row h2 { font-family: var(--pixel); font-size: 18px; font-weight: 400; color: var(--accent); letter-spacing: 0.04em; text-shadow: 3px 3px 0 #7a2c12; }
-body.retro .row h2 .from { font-family: var(--sans); font-size: 26px; color: var(--ink-3); text-shadow: none; }
-body.retro .tile { border-radius: 26px; border: 3px solid #5a3418; background: var(--tile); }
-body.retro .tile .name { font-family: var(--serif); font-weight: 400; font-size: 26px; }
-body.retro .tile .sub { font-family: var(--sans); font-size: 24px; }
-body.retro .tile.focus { transform: scale(1.08) rotate(-0.6deg); border-color: #ffd23f; box-shadow: 8px 8px 0 #c2341c, 16px 16px 0 #7a2c12; }
-body.retro .tile.focus::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 12px; background: var(--stripe); z-index: 3; }
-body.retro .tile img { filter: saturate(1.15) contrast(1.05); }
-body.retro .tile .live-dot { font-family: var(--pixel); font-size: 11px; border-radius: 4px; }
-body.retro .tile.watched .w-app, body.retro .tile.event .ev-time, body.retro .tile.channel .ch-kicker { font-family: var(--pixel); font-size: 12px; letter-spacing: 0.04em; }
-body.retro .tile.watched .w-show, body.retro .tile.event .ev-title, body.retro .tile.channel .ch-name { font-family: var(--serif); font-weight: 400; }
-body.retro .tile.watched .w-ep, body.retro .tile.watched .w-when, body.retro .tile.event .ev-place, body.retro .tile.channel .ch-about { font-family: var(--sans); font-size: 22px; }
-body.retro .tile.watched .w-bar div { background: var(--stripe); }
-body.retro .tile.event .ev-img, body.retro .tile.channel .ch-img { filter: sepia(0.5) saturate(1.3); }
+/* Guide grid: blue cells, yellow channel numbers, white hairlines */
+body.retro #guide-head { background: #c9d2ff; border-radius: 0; padding: 0 14px; }
+body.retro .gh-left { font-family: var(--pixel); font-size: 14px; color: #0b0d3a; letter-spacing: 0.06em; }
+body.retro .gh-right { font-family: var(--sans); font-size: 24px; color: #0b0d3a; }
+body.retro #guide-window { border-radius: 0; border: 3px solid #c9d2ff; border-top: 0; }
+body.retro .g-row { gap: 3px; padding: 0; border-bottom: 3px solid #c9d2ff; height: 76px; }
+body.retro .g-chan { border-radius: 0; border-left: 0; background: #0b0d3a; }
+body.retro .g-num { font-family: var(--sans); font-size: 44px; font-weight: 400; color: var(--accent); }
+body.retro .g-name { font-family: var(--sans); font-size: 30px; font-weight: 400; text-transform: uppercase; }
+body.retro .g-cells { gap: 3px; }
+body.retro .g-cell { border-radius: 0; border: 0; background: var(--cell); }
+body.retro .g-cell .t { font-family: var(--sans); font-size: 32px; font-weight: 400; }
+body.retro .g-cell .s { font-family: var(--sans); font-size: 22px; color: var(--ink-3); }
+body.retro .g-cell.now .t::before { color: var(--accent-2); }
+body.retro .g-row.active .g-chan { background: #1a1f7a; }
+body.retro .g-cell.focus { background: var(--accent); }
+body.retro .g-cell.focus .t, body.retro .g-cell.focus .s { color: #0b0d3a; }
 
 /* Ticker: the late news crawl */
-body.retro #ticker { background: #0a1a8a; border-top: 4px solid #ffd23f; height: 80px; }
-body.retro #ticker .tag { font-family: var(--pixel); font-size: 16px; color: #0a1a8a; background: #ffd23f; letter-spacing: 0.06em; }
+body.retro #ticker { background: #000; border-top: 4px solid var(--accent); height: 80px; }
+body.retro #ticker .tag { font-family: var(--pixel); font-size: 16px; color: #0b0d3a; background: var(--accent); letter-spacing: 0.06em; }
 body.retro #ticker .strip { font-family: var(--sans); font-size: 40px; color: #fff; text-transform: uppercase; letter-spacing: 0.03em; }
-body.retro #ticker .strip i { color: #ffd23f; }
+body.retro #ticker .strip i { color: var(--accent); }
 
-/* Idle: blue VCR screen with a green clock */
+/* Idle: blue VCR screen */
 body.retro #ambient { background: radial-gradient(ellipse at center, #1430b8 0%, #0a1a6e 100%); }
-body.retro.idle #ambient { opacity: 1; }
 body.retro #ambient-clock { font-family: var(--sans); font-size: 300px; color: var(--vcr); text-shadow: 0 0 24px rgba(125,255,138,0.6); }
 body.retro #ambient-date, body.retro #ambient-summary { font-family: var(--sans); color: #fff; text-transform: uppercase; }
 body.retro #ambient-date { font-size: 56px; }
 body.retro #ambient-summary { font-size: 44px; }
+body.retro #ambient-note { font-size: 56px; }
 
-/* Toast like an old station ID */
-body.retro #toast { font-family: var(--sans); font-size: 36px; background: #0a1a8a; border: 3px solid #ffd23f; border-radius: 0; }
-
-/* Keep the title block above the rows: one line each, no wrapping. */
-body.retro #hero { top: 214px; right: 640px; }
-body.retro #greeting { font-size: 96px; line-height: 1.02; }
-body.retro #summary { font-size: 36px; margin-top: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-body.retro #note { font-size: 32px; margin-top: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body.retro #toast { font-family: var(--sans); font-size: 36px; background: #0a1a8a; border: 3px solid var(--accent); border-radius: 0; }
+body.retro #build { font-family: var(--sans); }
