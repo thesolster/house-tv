@@ -1,9 +1,34 @@
 {
   "redirects": [
-    { "source": "/get", "destination": "/apk/house-tv.apk", "permanent": false }
+    {
+      "source": "/get",
+      "destination": "/apk/house-tv.apk",
+      "permanent": false
+    }
   ],
   "headers": [
-    { "source": "/(.*)", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
-    { "source": "/apk/(.*)", "headers": [{ "key": "Content-Type", "value": "application/vnd.android.package-archive" }] }
-  ]
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/apk/(.*)",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/vnd.android.package-archive"
+        }
+      ]
+    }
+  ],
+  "functions": {
+    "api/radio.js": {
+      "maxDuration": 60
+    }
+  }
 }
