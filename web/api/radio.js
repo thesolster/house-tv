@@ -83,6 +83,19 @@ module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   const mode = q.mode || "now";
 
+  if (mode === "raw") {
+    // debugging: look at a page from a station or playlist site
+    const u = String(q.url || "");
+    if (!/^https:\/\/([a-z0-9-]+\.)*(spinitron\.com|krml\.com|freakradio\.org|mutinyradio\.fm|radiobilingue\.org|kpcr\.org|piratecatradio\.com)\//.test(u)) return res.status(400).json({ error: "not allowed" });
+    try {
+      const r = await fetch(u, { headers: { "User-Agent": UA }, signal: timeout(8000) });
+      const t = await r.text();
+      const from = parseInt(q.from || "0", 10);
+      res.setHeader("Content-Type", "text/plain; charset=utf-8");
+      return res.status(r.status).send(t.slice(from, from + 12000));
+    } catch (e) { return res.status(500).json({ error: e.message }); }
+  }
+
   if (mode === "probe") {
     const st = stations.find(s => s.code === q.code) || { code: q.code, find: q.code, streams: [] };
     const rb = st.find ? await rbLookup(st.find) : [];
