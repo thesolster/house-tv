@@ -106,7 +106,7 @@
   setInterval(checkForUpdate, 2 * 60 * 1000);
 
   // Small stamp so we can tell which copy is on screen.
-  var PAGE_VERSION = "page 5";
+  var PAGE_VERSION = "page 6";
   var appVersion = window.HouseTV ? call("version") : "browser";
   setTimeout(function () {
     setText("build", PAGE_VERSION + " · app " + appVersion + " · " +
@@ -223,6 +223,8 @@
   function loadTickerFile() {
     return getJSON("ticker.json?t=" + Date.now()).then(function (j) {
       extraLines = (j.lines || []).filter(Boolean);
+      setText("note", j.note ? "♥ " + j.note : "");
+      setText("ambient-note", j.note ? "♥ " + j.note : "");
       buildTicker();
     }).catch(function () {});
   }

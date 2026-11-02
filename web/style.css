@@ -95,3 +95,9 @@ body.idle #rowsClip, body.idle #hero, body.idle #top, body.idle #side { opacity:
 .remote-title { font-size: 22px; font-weight: 600; }
 .remote-sub { font-size: 17px; color: var(--ink-3); margin-top: 6px; max-width: 140px; }
 .tile .live-dot { position: absolute; top: 14px; left: 16px; font-size: 15px; font-weight: 700; letter-spacing: 0.1em; color: #fff; background: var(--accent-2); padding: 3px 8px; border-radius: 6px; }
+
+/* A note for the house, set in web/ticker.json ("note"). */
+.note { font-family: var(--serif); font-style: italic; font-weight: 500; color: var(--accent); }
+.note:empty { display: none; }
+#note { font-size: 40px; margin-top: 26px; line-height: 1.2; }
+#ambient-note { font-size: 54px; margin-top: 40px; }
