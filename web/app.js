@@ -6,7 +6,7 @@
 (function () {
   "use strict";
 
-  var PAGE_VERSION = "page 16";
+  var PAGE_VERSION = "page 17";
   var SANTA_CRUZ = { lat: 36.9741, lon: -122.0308, tz: "America/Los_Angeles" };
   var TIDE_STATION = "9413745"; // NOAA, Santa Cruz
   var IDLE_MS = 5 * 60 * 1000;
@@ -463,12 +463,21 @@
     if (!shows.length) shows.push({ t: "Nothing yet", s: "Watch something and it shows up here", title: "Your shows", sub: "Watch something and it shows up here", preview: { type: "card", kicker: "Your shows", title: "Nothing yet" } });
     out.push({ num: "02", name: "Your shows", color: "#ffd23f", cells: shows });
 
-    // 03 Santa Cruz: the town station and the cams
+    // 03 Santa Cruz: the whole town in one channel. The station, then each of
+    // Regular's channels, then the cams. ◀ ▶ moves between them; OK plays one.
     var photo0 = town.photos[0] || {};
-    var sc = [{ t: "Santa Cruz right now", s: "Regular TV · all channels", now: true, kicker: "Regular TV · all channels", title: "Santa Cruz right now",
+    var sc = [{ t: "Santa Cruz right now", s: "All of the town's channels, mixed", now: true, kicker: "Regular TV · all channels", title: "Santa Cruz right now",
       sub: "The whole town's channels, mixed by time of day", preview: livePreview(STATION_PAGE, photo0.url, photo0.credit), act: function () { watchChannel(0); } }];
+    town.channels.forEach(function (ch, i) {
+      var first = ch.items[0];
+      var sub = ch.id === "tonight" && town.events.length
+        ? town.events.length + " on tonight · " + town.events[0].title + (town.events[0].now ? " on now" : "")
+        : first ? first.t + (first.s ? " · " + first.s : "") : ch.about;
+      sc.push({ t: ch.name, s: sub, kicker: "Regular TV · " + ch.name, title: ch.name, sub: ch.about,
+        preview: livePreview(ch.url, ch.photo, ch.credit), act: function () { watchChannel(i + 1); } });
+    });
     liveItems.forEach(function (it) {
-      sc.push({ t: it.title, s: it.sub || "Live cam", now: true, kicker: "Live", title: it.title, sub: it.sub || "",
+      sc.push({ t: it.title, s: it.sub || "Live cam", now: true, kicker: "Live cam", title: it.title, sub: it.sub || "",
         preview: { type: "card", kicker: "Live cam", title: it.title },
         act: function () {
           var r = it.kind === "youtube" ? call("openUrl", it.url, "") : call("view", it.url);
@@ -476,30 +485,6 @@
         } });
     });
     out.push({ num: "03", name: "Santa Cruz", color: "#5bc4e3", cells: sc });
-
-    // 04 Tonight
-    if (town.events.length) {
-      out.push({ num: "04", name: "Tonight", color: "#ec5b70", cells: town.events.slice(0, 10).map(function (e) {
-        return { t: e.title, s: (e.now ? "On now" : e.time || "Tonight") + (e.place ? " · " + e.place : ""), now: e.now,
-          kicker: e.now ? "On now" : e.time || "Tonight", title: e.title, sub: e.place || "",
-          preview: e.photo ? { type: "photo", url: e.photo, credit: e.credit } : { type: "card", kicker: "Tonight", title: e.title },
-          act: function () { if (e.url && call("view", e.url) !== "ok") toast("Couldn't open " + (e.place || "it")); } };
-      }) });
-    }
-
-    // 05+ Regular's channels, one row each
-    var rowNum = 5;
-    town.channels.forEach(function (ch, i) {
-      if (ch.id === "tonight" && town.events.length) return; // already channel 04
-      var num = String(rowNum++).padStart(2, "0");
-      var pv = livePreview(ch.url, ch.photo, ch.credit);
-      var cells = [{ t: "Watch " + ch.name, s: ch.about, now: true, kicker: "Regular TV · " + ch.name, title: ch.name, sub: ch.about, preview: pv, act: function () { watchChannel(i + 1); } }];
-      ch.items.slice(0, 6).forEach(function (it) {
-        cells.push({ t: it.t, s: it.s, now: it.now, kicker: ch.name, title: it.t, sub: it.s,
-          preview: it.photo ? { type: "photo", url: it.photo } : pv, act: function () { watchChannel(i + 1); } });
-      });
-      out.push({ num: num, name: ch.name, color: ch.color, cells: cells });
-    });
 
     // 20+ Each app is its own channel: open it, plus what you watched there.
     var history = json("history", {}).items || [];
