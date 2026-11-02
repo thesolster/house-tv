@@ -6,7 +6,7 @@
 (function () {
   "use strict";
 
-  var PAGE_VERSION = "page 28";
+  var PAGE_VERSION = "page 29";
   var SANTA_CRUZ = { lat: 36.9741, lon: -122.0308, tz: "America/Los_Angeles" };
   var TIDE_STATION = "9413745"; // NOAA, Santa Cruz
   var IDLE_MS = 5 * 60 * 1000;
@@ -512,7 +512,9 @@
       var sub = ch.id === "tonight" && town.events.length
         ? town.events.length + " on tonight · " + town.events[0].title + (town.events[0].now ? " on now" : "")
         : first ? first.t + (first.s ? " · " + first.s : "") : ch.about;
+      var ev0 = ch.id === "tonight" ? town.events[0] : null;
       sc.push({ t: ch.name, s: sub, kicker: "Regular TV · " + ch.name, title: ch.name, sub: ch.about,
+        save: ev0 ? { kind: "event", title: ev0.title, sub: [ev0.place, ev0.time].filter(Boolean).join(" · "), url: ev0.url || "" } : null,
         preview: livePreview(ch.url, ch.photo, ch.credit), act: function () { watchChannel(i + 1); } });
     });
     liveItems.forEach(function (it) {
@@ -548,7 +550,8 @@
         t: "▶ " + (pg.show || "Listen"), s: pg.song ? "♪ " + pg.song : line || cfg.area + " · " + cfg.about,
         now: true, kicker: cfg.area + " · " + (playing ? (rs.state === "playing" ? "Playing now" : "Tuning in…") : "On the radio"),
         title: pg.show || cfg.name, sub: sub,
-        preview: livePreview(STATION_PAGE, (town.photos[0] || {}).url), act: function () { enterTune(cfg, 0); }
+        preview: livePreview(STATION_PAGE, (town.photos[0] || {}).url), act: function () { enterTune(cfg, 0); },
+        save: function () { return songItem(cfg); }
       }, {
         t: playing ? "■ Stop" : "Sound only", s: playing ? "Turn " + cfg.name + " off" : "Just the radio, stay on the guide",
         kicker: cfg.name, title: playing ? "Stop" : "Sound only", sub: playing ? "Turn " + cfg.name + " off" : "Plays " + cfg.name + " and leaves the guide up",
@@ -1047,6 +1050,38 @@
     }
     return wasIdle;
   }
+
+  /* ---------- save: ☰ on the remote puts what you're on into the phone remote's Saved list ---------- */
+
+  function songItem(cfg) {
+    var pg = program(cfg);
+    if (pg.song) return { kind: "song", title: pg.song, sub: cfg.name + (pg.show ? " · " + pg.show : ""), station: cfg.code,
+      url: "https://www.youtube.com/results?search_query=" + encodeURIComponent(pg.song) };
+    return { kind: "show", title: pg.show || cfg.name, sub: pg.show ? cfg.name + (pg.host ? " · with " + pg.host : "") : cfg.about,
+      station: cfg.code, url: cfg.playlist || "" };
+  }
+  function saveItem(cell, row) {
+    if (!cell) return null;
+    if (cell.save) return typeof cell.save === "function" ? cell.save() : cell.save;
+    var title = cell.title || cell.t;
+    if (!title || /^(Settings|Nothing yet)$/.test(title)) return null;
+    return { kind: row && row.num === "02" ? "show" : "pick", title: title, sub: cell.sub || cell.s || (row ? row.name : ""), url: cell.link || "" };
+  }
+  function doSave(item) {
+    if (!item) { toast("Nothing to save here"); return; }
+    var r = call("save", JSON.stringify(item));
+    toast(r === "ok" ? "Saved to your phone · " + item.title : r || "Saving needs the newest app");
+  }
+  function radioNowItem() {
+    var rs = json("radioStatus", {}), cfg = radioByName(rs.station);
+    return radioPlaying() && cfg ? songItem(cfg) : null;
+  }
+  window.houseSave = function () {
+    if (tune.on) { doSave(radioNowItem() || (radioStation() && songItem(radioStation()))); return; }
+    doSave(saveItem(cur(), rows[focus.r]));
+  };
+  // From the phone: save what's on. The radio's song if a station is on, else whatever you're on in the guide.
+  window.houseSaveNow = function () { doSave(radioNowItem() || saveItem(cur(), rows[focus.r])); };
 
   // Called by the Android shell (and the phone remote).
   window.houseSkin = function (id) { if (SKINS.some(function (k) { return k.id === id; })) pickSkin(id); };

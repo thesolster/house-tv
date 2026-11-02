@@ -33,6 +33,23 @@
   #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #2c2722; border: 1px solid var(--line); padding: 10px 16px; border-radius: 12px; opacity: 0; transition: opacity .25s; pointer-events: none; max-width: 90%; }
   #toast.show { opacity: 1; }
   .setup { border-color: rgba(242,166,90,.4); }
+  .radio-card { display: flex; gap: 14px; align-items: center; }
+  .radio-card .dot { flex: 0 0 auto; width: 46px; height: 46px; border-radius: 50%; background: var(--accent); color: var(--bg); display: flex; align-items: center; justify-content: center; font-size: 22px; }
+  .radio-card .txt { flex: 1; min-width: 0; }
+  .radio-card .song { color: var(--ink-2); margin-top: 3px; }
+  .row-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+  .row-btns button { background: #2c2722; color: var(--ink); border: 0; border-radius: 12px; padding: 13px 0; font-size: 16px; font-weight: 600; }
+  .row-btns .save { background: var(--accent); color: var(--bg); }
+  .list { display: flex; flex-direction: column; gap: 10px; }
+  .item { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; display: flex; gap: 12px; align-items: center; }
+  .item .txt { flex: 1; min-width: 0; }
+  .item .kind { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+  .item .t { font-weight: 600; margin-top: 2px; }
+  .item .s { color: var(--ink-3); font-size: 13px; margin-top: 2px; }
+  .item a, .item button { flex: 0 0 auto; background: #2c2722; color: var(--ink); border: 0; border-radius: 10px; padding: 9px 12px; font-size: 14px; font-weight: 600; text-decoration: none; }
+  .item button.x { background: none; color: var(--ink-3); padding: 9px 6px; }
+  .item button.add { background: var(--accent); color: var(--bg); }
+  .empty { color: var(--ink-3); font-size: 14px; padding: 4px 2px; }
 </style>
 </head>
 <body>
@@ -52,6 +69,27 @@
     <button data-cmd='{"do":"media","action":"forward"}'>+30s</button>
   </div>
 </div>
+
+<div class="card" id="radio-now" hidden>
+  <div class="radio-card">
+    <div class="dot">♪</div>
+    <div class="txt">
+      <div class="np-app" id="rn-station"></div>
+      <div class="np-title" id="rn-show"></div>
+      <div class="song" id="rn-song"></div>
+    </div>
+  </div>
+  <div class="row-btns">
+    <button class="save" data-cmd='{"do":"saveNow"}' data-label="Saved">♥ Save this</button>
+    <button data-cmd='{"do":"radioStop"}' data-label="Radio off">■ Stop</button>
+  </div>
+</div>
+
+<h2>Saved</h2>
+<div class="list" id="saved"><div class="empty">Press ☰ on the TV remote to save what you're on. It shows up here.</div></div>
+
+<h2 id="tonight-h" hidden>Tonight in town</h2>
+<div class="list" id="tonight"></div>
 
 <div class="card setup" id="setup" hidden>
   <div class="muted" id="setup-text"></div>
@@ -142,6 +180,94 @@
     items.forEach(function (b) { el.appendChild(b); });
   }
 
+  // Things saved on the TV: open them here, or take them off the list.
+  var KINDS = { song: "Song", show: "On the radio", event: "Event", pick: "Saved" };
+  function renderSaved(items) {
+    var el = document.getElementById("saved");
+    var sig = JSON.stringify(items.map(function (i) { return i.at; }));
+    if (el.getAttribute("data-sig") === sig) return;
+    el.setAttribute("data-sig", sig);
+    if (!items.length) { el.innerHTML = '<div class="empty">Press ☰ on the TV remote to save what you\'re on. It shows up here.</div>'; return; }
+    el.innerHTML = "";
+    items.forEach(function (it) {
+      var row = document.createElement("div");
+      row.className = "item";
+      var txt = document.createElement("div");
+      txt.className = "txt";
+      [["kind", (it.kind === "show" && !it.station ? "Show" : KINDS[it.kind] || "Saved") + " · " + when(it.at)], ["t", it.title], ["s", it.sub || ""]].forEach(function (p) {
+        if (!p[1]) return;
+        var d = document.createElement("div"); d.className = p[0]; d.textContent = p[1]; txt.appendChild(d);
+      });
+      row.appendChild(txt);
+      if (it.url) {
+        var a = document.createElement("a");
+        a.href = it.url; a.target = "_blank"; a.rel = "noopener";
+        a.textContent = it.kind === "song" ? "Find it" : "Open";
+        row.appendChild(a);
+      }
+      var x = document.createElement("button");
+      x.className = "x"; x.textContent = "✕"; x.setAttribute("aria-label", "Remove");
+      x.setAttribute("data-cmd", JSON.stringify({ do: "unsave", at: it.at }));
+      row.appendChild(x);
+      el.appendChild(row);
+    });
+  }
+  function when(ms) {
+    var d = new Date(ms), now = new Date();
+    if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    return d.toLocaleDateString([], { month: "short", day: "numeric" });
+  }
+
+  // The station that's on, what show, what song, with a Save button.
+  var onAir = {}, stations = [];
+  function renderRadio(r) {
+    var on = r.state === "playing" || r.state === "connecting" || r.state === "reconnecting";
+    document.getElementById("radio-now").hidden = !on;
+    if (!on) return;
+    var cfg = stations.filter(function (s) { return s.name === r.station; })[0] || {};
+    var a = onAir[cfg.code] || {};
+    var song = a.song ? (a.artist ? a.artist + " – " : "") + a.song : a.title || "";
+    document.getElementById("rn-station").textContent = (r.state === "playing" ? "On the radio · " : r.state === "reconnecting" ? "Reconnecting · " : "Tuning in · ") + r.station;
+    document.getElementById("rn-show").textContent = a.show ? a.show + (a.dj ? " · with " + a.dj : "") : cfg.about || "";
+    document.getElementById("rn-song").textContent = song ? "♪ " + song : "";
+  }
+  function loadOnAir() {
+    fetch("https://house-tv.vercel.app/api/radio").then(function (r) { return r.json(); }).then(function (j) { onAir = j.now || {}; }).catch(function () {});
+  }
+
+  // Tonight's events from Regular, each one savable.
+  function loadTonight() {
+    fetch("https://regular-tv-channels.vercel.app/api/town/station").then(function (r) { return r.json(); }).then(function (st) {
+      var evs = [], seen = {};
+      (st.spots || []).forEach(function (spot) {
+        (spot.parts || []).forEach(function (p) {
+          if (p.kind === "event" && p.title && !seen[p.title]) { seen[p.title] = 1; evs.push(p); }
+        });
+      });
+      document.getElementById("tonight-h").hidden = !evs.length;
+      var el = document.getElementById("tonight");
+      el.innerHTML = "";
+      evs.slice(0, 12).forEach(function (p) {
+        var sub = [p.place, p.time].filter(Boolean).join(" · ");
+        var row = document.createElement("div");
+        row.className = "item";
+        var txt = document.createElement("div");
+        txt.className = "txt";
+        [["kind", p.now ? "On now" : "Tonight"], ["t", p.title], ["s", sub]].forEach(function (q) {
+          if (!q[1]) return;
+          var d = document.createElement("div"); d.className = q[0]; d.textContent = q[1]; txt.appendChild(d);
+        });
+        row.appendChild(txt);
+        var b = document.createElement("button");
+        b.className = "add"; b.textContent = "♥ Save";
+        b.setAttribute("data-cmd", JSON.stringify({ do: "save", item: { kind: "event", title: p.title, sub: sub, url: (p.ref && p.ref.u) || "" } }));
+        b.setAttribute("data-label", "Saved");
+        row.appendChild(b);
+        el.appendChild(row);
+      });
+    }).catch(function () {});
+  }
+
   function fmt(ms) { var m = Math.floor(ms / 60000), h = Math.floor(m / 60); return h ? h + "h " + (m % 60) + "m" : m + "m"; }
 
   function refresh() {
@@ -153,6 +279,11 @@
       document.getElementById("np-title").textContent = np.title || "";
       document.getElementById("np-sub").textContent = (np.subtitle || "") + (np.duration > 0 ? (np.subtitle ? " · " : "") + fmt(np.duration - np.position) + " left" : "");
       document.getElementById("np-fill").style.width = np.duration > 0 ? Math.min(100, 100 * np.position / np.duration) + "%" : "0";
+
+      renderRadio(s.radio || {});
+      var rOn = /playing|connecting|reconnecting/.test((s.radio || {}).state || "");
+      document.getElementById("np").hidden = rOn && !np.title && !np.app;
+      renderSaved(s.saved || []);
 
       var st = s.status || {};
       var missing = [];
@@ -177,7 +308,8 @@
   function loadSkinsAndRadio() {
     fillGrid("skins", SKINS.map(function (k) { return button(k[1], "", { do: "skin", id: k[0] }); }));
     fetch("https://house-tv.vercel.app/radio.json", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (j) {
-      var btns = (j.stations || []).filter(function (st) { return !st.soon; }).map(function (st) {
+      stations = j.stations || [];
+      var btns = stations.filter(function (st) { return !st.soon; }).map(function (st) {
         var b = button(st.name, st.area, { do: "radio", station: st.name, urls: st.streams || [] });
         if (st.find) b.setAttribute("data-find", st.find);
         return b;
@@ -205,6 +337,10 @@
   }
 
   refresh();
+  loadOnAir();
+  loadTonight();
+  setInterval(loadOnAir, 60000);
+  setInterval(loadTonight, 10 * 60000);
   loadLive();
   loadSkinsAndRadio();
   setInterval(refresh, 4000);

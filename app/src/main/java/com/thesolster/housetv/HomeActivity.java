@@ -171,6 +171,11 @@ public class HomeActivity extends Activity {
             if (k == KeyEvent.KEYCODE_DPAD_RIGHT || k == KeyEvent.KEYCODE_CHANNEL_UP) { flip(1); return true; }
             if (k == KeyEvent.KEYCODE_DPAD_LEFT || k == KeyEvent.KEYCODE_CHANNEL_DOWN) { flip(-1); return true; }
         }
+        // The menu key (☰) saves whatever you're on to the phone remote's Saved list.
+        if (event.getAction() == KeyEvent.ACTION_DOWN && event.getKeyCode() == KeyEvent.KEYCODE_MENU) {
+            js("window.houseSave && houseSave()");
+            return true;
+        }
         // Play/pause on the remote controls whatever is playing, even from our screen.
         if (event.getAction() == KeyEvent.ACTION_DOWN
                 && event.getKeyCode() == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE
@@ -251,6 +256,8 @@ public class HomeActivity extends Activity {
         @JavascriptInterface public String radioPlay(String station, String urlsJson) { return Radio.play(station, urlsJson); }
         @JavascriptInterface public String radioStop() { return Radio.stop(); }
         @JavascriptInterface public String radioStatus() { return Radio.status(); }
+        @JavascriptInterface public String save(String json) { return Tv.save(ctx, json); }
+        @JavascriptInterface public String saved() { return Tv.saved(ctx); }
         @JavascriptInterface public String resume(String pkg, String mediaId, String mediaUri) { return Tv.resume(ctx, pkg, mediaId, mediaUri); }
 
         /** Play one of a list of channels full screen; left/right flips between them. */

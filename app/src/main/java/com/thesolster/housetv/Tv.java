@@ -428,6 +428,46 @@ public final class Tv {
         }
     }
 
+    /* ---------------- saved: things you saved on the TV, listed on the phone remote ---------------- */
+
+    /** item: {kind, title, sub, url, station?}. Newest first, no repeats, up to 80. */
+    public static synchronized String save(Context ctx, String json) {
+        try {
+            JSONObject item = new JSONObject(json);
+            String title = item.optString("title").trim();
+            if (title.isEmpty()) return "nothing to save";
+            item.put("at", System.currentTimeMillis());
+            SharedPreferences p = ctx.getSharedPreferences("house", Context.MODE_PRIVATE);
+            JSONArray old = new JSONArray(p.getString("saved", "[]"));
+            JSONArray out = new JSONArray().put(item);
+            String key = title + "|" + item.optString("sub");
+            for (int i = 0; i < old.length() && out.length() < 80; i++) {
+                JSONObject o = old.getJSONObject(i);
+                if (!(o.optString("title") + "|" + o.optString("sub")).equals(key)) out.put(o);
+            }
+            p.edit().putString("saved", out.toString()).apply();
+            return "ok";
+        } catch (Exception e) {
+            return "couldn't save";
+        }
+    }
+
+    public static synchronized String unsave(Context ctx, long at) {
+        try {
+            SharedPreferences p = ctx.getSharedPreferences("house", Context.MODE_PRIVATE);
+            JSONArray old = new JSONArray(p.getString("saved", "[]")), out = new JSONArray();
+            for (int i = 0; i < old.length(); i++) if (old.getJSONObject(i).optLong("at") != at) out.put(old.getJSONObject(i));
+            p.edit().putString("saved", out.toString()).apply();
+            return "ok";
+        } catch (Exception e) {
+            return "couldn't remove";
+        }
+    }
+
+    public static String saved(Context ctx) {
+        return ctx.getSharedPreferences("house", Context.MODE_PRIVATE).getString("saved", "[]");
+    }
+
     public static String clearHistory(Context ctx) {
         ctx.getSharedPreferences("house", Context.MODE_PRIVATE).edit().remove("history").apply();
         return "ok";

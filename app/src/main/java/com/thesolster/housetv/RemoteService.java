@@ -173,7 +173,8 @@ public class RemoteService extends Service {
                         .put("apps", new org.json.JSONArray(Tv.apps(this)))
                         .put("inputs", new org.json.JSONArray(Tv.inputs(this)))
                         .put("status", new JSONObject(Tv.status(this)))
-                        .put("radio", new JSONObject(Radio.status()));
+                        .put("radio", new JSONObject(Radio.status()))
+                        .put("saved", new org.json.JSONArray(Tv.saved(this)));
                 respond(out, 200, "application/json", st.toString().getBytes(StandardCharsets.UTF_8));
             } else if (path.equals("/api/cmd") && "POST".equals(method)) {
                 JSONObject cmd = new JSONObject(new String(body, 0, read, StandardCharsets.UTF_8));
@@ -207,6 +208,12 @@ public class RemoteService extends Service {
                 return Radio.play(cmd.optString("station"), urls == null ? "[]" : urls.toString());
             }
             case "radioStop": return Radio.stop();
+            case "save": {
+                JSONObject item = cmd.optJSONObject("item");
+                return item == null ? "nothing to save" : Tv.save(this, item.toString());
+            }
+            case "unsave": return Tv.unsave(this, cmd.optLong("at"));
+            case "saveNow": return HomeActivity.pageCall("window.houseSaveNow && houseSaveNow()");
             default: return "unknown command";
         }
     }
