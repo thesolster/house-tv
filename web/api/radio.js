@@ -84,6 +84,8 @@ async function spinitron(id, raw) {
     if (m) { try { const sp = JSON.parse(m[1].replace(/&quot;/g, '"').replace(/&amp;/g, "&").replace(/&#0?39;/g, "'")); out.artist = sp.a || ""; out.song = sp.s || ""; } catch (e) {} }
     const u = out.slot.match(/(\d{1,2}:\d\d\s*[AP]M)\s*–\s*(\d{1,2}:\d\d\s*[AP]M)/);
     if (u) { out.from = u[1]; out.until = u[2]; }
+    if (/\d{1,2}\/\d{1,2}\/\d\d/.test(out.show)) out.show = "";   // automation playlists named after the date
+    if (/bot$/i.test(out.dj)) out.dj = "";
     if (raw) out.raw = block.slice(0, 3000);
     return out;
   } catch (e) { return { error: e.message }; }
@@ -137,7 +139,7 @@ module.exports = async (req, res) => {
     }
     if (!info.song && st.streams && st.streams[0]) {
       const t = await testStream(st.streams[0], 2500);
-      if (t.title && t.title.length > 2) info.title = t.title;
+      if (t.title && /\s/.test(t.title) && !/https?:|\.(mp3|aac)\b/i.test(t.title)) info.title = t.title;
     }
     now[st.code] = info;
   }));
