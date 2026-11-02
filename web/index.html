@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>House TV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="stage">
+  <div id="glow"></div>
+
+  <header id="top">
+    <div class="where">
+      <div class="label">Home</div>
+      <div class="place">Santa Cruz</div>
+    </div>
+    <div class="now">
+      <div id="clock">--:--</div>
+      <div id="date"></div>
+    </div>
+  </header>
+
+  <section id="hero">
+    <h1 id="greeting">Hello.</h1>
+    <p id="summary">&nbsp;</p>
+  </section>
+
+  <main id="rows">
+    <section class="row" data-row="apps">
+      <h2>Watch</h2>
+      <div class="track"><div class="tiles" id="apps"></div></div>
+    </section>
+    <section class="row" data-row="inputs">
+      <h2>Inputs &amp; settings</h2>
+      <div class="track"><div class="tiles" id="inputs"></div></div>
+    </section>
+  </main>
+
+  <div id="ambient">
+    <div id="ambient-clock">--:--</div>
+    <div id="ambient-date"></div>
+    <div id="ambient-summary"></div>
+  </div>
+
+  <footer id="ticker">
+    <div class="tag">Santa Cruz</div>
+    <div class="belt"><div class="strip" id="strip"></div></div>
+  </footer>
+
+  <div id="toast"></div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
