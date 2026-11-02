@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#12100e">
+<title>Home remote</title>
+<style>
+  :root { --bg:#12100e; --card:#211d19; --ink:#f4ede4; --ink-2:#b9ada0; --ink-3:#7d7268; --accent:#f2a65a; --live:#e2725b; --line:rgba(244,237,228,.10); }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { background: var(--bg); color: var(--ink); font: 16px/1.35 -apple-system, "Inter", "Helvetica Neue", Arial, sans-serif; padding: 16px 16px 40px; padding-top: max(16px, env(safe-area-inset-top)); }
+  header { display: flex; justify-content: space-between; align-items: baseline; margin: 4px 2px 16px; }
+  h1 { font: 700 26px Georgia, serif; }
+  .home-btn { background: none; border: 1px solid var(--line); color: var(--ink); border-radius: 999px; padding: 8px 16px; font-size: 15px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; margin-bottom: 18px; }
+  .np-app { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+  .np-title { font: 700 22px Georgia, serif; margin-top: 6px; }
+  .np-sub { color: var(--ink-2); margin-top: 2px; }
+  .bar { height: 5px; background: rgba(244,237,228,.12); border-radius: 3px; margin-top: 12px; overflow: hidden; }
+  .bar div { height: 100%; width: 0; background: var(--accent); }
+  .controls { display: grid; grid-template-columns: 1fr 1.4fr 1fr; gap: 10px; margin-top: 14px; }
+  .controls button { background: #2c2722; color: var(--ink); border: 0; border-radius: 12px; padding: 14px 0; font-size: 17px; font-weight: 600; }
+  .controls .play { background: var(--accent); color: var(--bg); }
+  .muted { color: var(--ink-3); font-size: 14px; }
+  h2 { font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-2); margin: 22px 2px 10px; font-weight: 700; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .grid button { background: var(--card); color: var(--ink); border: 1px solid var(--line); border-radius: 14px; padding: 14px 12px; text-align: left; font-size: 15px; font-weight: 600; min-height: 58px; }
+  .grid button small { display: block; color: var(--ink-3); font-weight: 400; font-size: 12px; margin-top: 3px; }
+  .grid button.live::before { content: "LIVE"; display: inline-block; font-size: 10px; letter-spacing: .1em; background: var(--live); color: #fff; padding: 2px 6px; border-radius: 4px; margin-bottom: 6px; }
+  .grid button:active, .controls button:active { transform: scale(.97); }
+  details summary { list-style: none; cursor: pointer; }
+  details summary::-webkit-details-marker { display: none; }
+  #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #2c2722; border: 1px solid var(--line); padding: 10px 16px; border-radius: 12px; opacity: 0; transition: opacity .25s; pointer-events: none; max-width: 90%; }
+  #toast.show { opacity: 1; }
+  .setup { border-color: rgba(242,166,90,.4); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Home</h1>
+  <button class="home-btn" data-cmd='{"do":"home"}'>TV home</button>
+</header>
+
+<div class="card" id="np">
+  <div class="np-app" id="np-app">Nothing playing</div>
+  <div class="np-title" id="np-title"></div>
+  <div class="np-sub" id="np-sub"></div>
+  <div class="bar"><div id="np-fill"></div></div>
+  <div class="controls">
+    <button data-cmd='{"do":"media","action":"back"}'>−10s</button>
+    <button class="play" data-cmd='{"do":"media","action":"toggle"}'>Play / Pause</button>
+    <button data-cmd='{"do":"media","action":"forward"}'>+30s</button>
+  </div>
+</div>
+
+<div class="card setup" id="setup" hidden>
+  <div class="muted" id="setup-text"></div>
+</div>
+
+<h2 id="recent-h" hidden>Recent</h2>
+<div class="grid" id="recent"></div>
+
+<h2>Live around town</h2>
+<div class="grid" id="live"></div>
+
+<h2>Inputs</h2>
+<div class="grid" id="inputs"></div>
+
+<details>
+  <summary><h2>All apps ›</h2></summary>
+  <div class="grid" id="apps"></div>
+</details>
+
+<div id="toast"></div>
+
+<script>
+(function () {
+  var token = new URLSearchParams(location.search).get("t") || "";
+  var LIVE_URL = "https://house-tv.vercel.app/live.json";
+
+  function api(path, body) {
+    var opts = body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {};
+    return fetch(path + "?t=" + encodeURIComponent(token), opts).then(function (r) {
+      if (r.status === 403) throw new Error("Scan the code on the TV again.");
+      if (!r.ok) throw new Error("Can't reach the TV. Same wifi?");
+      return r.json().catch(function () { throw new Error("Can't reach the TV. Same wifi?"); });
+    });
+  }
+
+  function send(cmd, label) {
+    api("/api/cmd", cmd).then(function (r) {
+      if (r.result !== "ok") toast((label ? label + ": " : "") + r.result);
+      else if (label) toast(label);
+      setTimeout(refresh, 800);
+    }).catch(function (e) { toast(e.message || "TV didn't answer"); });
+  }
+
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-cmd]");
+    if (!b) return;
+    send(JSON.parse(b.getAttribute("data-cmd")), b.getAttribute("data-label"));
+  });
+
+  function button(name, sub, cmd, cls) {
+    var b = document.createElement("button");
+    if (cls) b.className = cls;
+    b.textContent = name;
+    if (sub) { var s = document.createElement("small"); s.textContent = sub; b.appendChild(s); }
+    b.setAttribute("data-cmd", JSON.stringify(cmd));
+    b.setAttribute("data-label", name);
+    return b;
+  }
+
+  function fillGrid(id, items) {
+    var el = document.getElementById(id);
+    var sig = JSON.stringify(items.map(function (b) { return b.getAttribute("data-cmd"); }));
+    if (el.getAttribute("data-sig") === sig) return;
+    el.setAttribute("data-sig", sig);
+    el.innerHTML = "";
+    items.forEach(function (b) { el.appendChild(b); });
+  }
+
+  function fmt(ms) { var m = Math.floor(ms / 60000), h = Math.floor(m / 60); return h ? h + "h " + (m % 60) + "m" : m + "m"; }
+
+  function refresh() {
+    api("/api/state").then(function (s) {
+      var np = s.nowPlaying || {};
+      document.getElementById("np-app").textContent = np.title || np.app
+        ? (np.state === "playing" ? "Now playing · " : np.state === "paused" ? "Paused · " : "") + (np.app || "")
+        : (np.access === false ? "Now playing needs the one-time setup" : "Nothing playing");
+      document.getElementById("np-title").textContent = np.title || "";
+      document.getElementById("np-sub").textContent = (np.subtitle || "") + (np.duration > 0 ? (np.subtitle ? " · " : "") + fmt(np.duration - np.position) + " left" : "");
+      document.getElementById("np-fill").style.width = np.duration > 0 ? Math.min(100, 100 * np.position / np.duration) + "%" : "0";
+
+      var st = s.status || {};
+      var missing = [];
+      if (!st.usage) missing.push("the Recent list");
+      if (!st.nowPlaying) missing.push("Now playing");
+      document.getElementById("setup").hidden = !missing.length;
+      document.getElementById("setup-text").textContent = missing.length ? "Run the one-time setup on the TV to turn on " + missing.join(" and ") + "." : "";
+
+      var recent = (s.recent || []).slice(0, 6);
+      document.getElementById("recent-h").hidden = !recent.length;
+      fillGrid("recent", recent.map(function (a) { return button(a.label, "", { do: "launch", pkg: a.pkg }); }));
+
+      fillGrid("inputs", (s.inputs || []).map(function (i) { return button(i.label, "", { do: "input", id: i.id }); })
+        .concat([button("Settings", "Fire TV", { do: "settings" })]));
+
+      var apps = (s.apps || []).slice().sort(function (a, b) { return a.label.localeCompare(b.label); });
+      fillGrid("apps", apps.map(function (a) { return button(a.label, "", { do: "launch", pkg: a.pkg }); }));
+    }).catch(function (e) { toast(/^(Scan|Can't)/.test(e.message || "") ? e.message : "Can't reach the TV. Same wifi?"); });
+  }
+
+  function loadLive() {
+    fetch(LIVE_URL, { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (j) {
+      fillGrid("live", (j.items || []).map(function (it) {
+        return button(it.title, it.sub, it.kind === "youtube" ? { do: "open", url: it.url } : { do: "view", url: it.url }, "live");
+      }));
+    }).catch(function () {});
+  }
+
+  var toastTimer;
+  function toast(msg) {
+    var el = document.getElementById("toast");
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.classList.remove("show"); }, 2400);
+  }
+
+  refresh();
+  loadLive();
+  setInterval(refresh, 4000);
+})();
+</script>
+</body>
+</html>

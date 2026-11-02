@@ -45,7 +45,17 @@
     },
     openInput: function (id) { toast("Would switch to " + id); return "ok"; },
     settings: function () { toast("Would open settings"); return "ok"; },
-    version: function () { return "browser preview"; }
+    version: function () { return "browser preview"; },
+    recent: function () {
+      return JSON.stringify([{ pkg: "com.netflix.ninja", label: "Netflix" }, { pkg: "com.amazon.firetv.youtube", label: "YouTube" }]);
+    },
+    nowPlaying: function () {
+      return JSON.stringify({ access: true, pkg: "com.netflix.ninja", app: "Netflix", title: "The Sopranos", subtitle: "S2:E4 · Commendatori", state: "playing", position: 1500000, duration: 3300000 });
+    },
+    media: function (a) { toast("Would " + a); return "ok"; },
+    openUrl: function (u) { toast("Would open " + u); return "ok"; },
+    view: function (u) { toast("Would show " + u); return "ok"; },
+    status: function () { return JSON.stringify({ usage: true, nowPlaying: true, remote: "http://192.168.1.42:8765/?t=preview" }); }
   };
 
   function call(name) {
@@ -96,7 +106,7 @@
   setInterval(checkForUpdate, 2 * 60 * 1000);
 
   // Small stamp so we can tell which copy is on screen.
-  var PAGE_VERSION = "page 3";
+  var PAGE_VERSION = "page 4";
   var appVersion = window.HouseTV ? call("version") : "browser";
   setTimeout(function () {
     setText("build", PAGE_VERSION + " · app " + appVersion + " · " +
@@ -255,10 +265,54 @@
   }
   requestAnimationFrame(runTicker);
 
-  /* ---------- rows: apps and inputs ---------- */
+  /* ---------- now playing ---------- */
 
-  var rows = []; // [{el: tilesEl, tiles: [tileEl...]}]
+  function fmtDur(ms) {
+    var m = Math.floor(ms / 60000), h = Math.floor(m / 60);
+    return h ? h + "h " + (m % 60) + "m" : m + "m";
+  }
+
+  function refreshNowPlaying() {
+    var np = {};
+    try { np = JSON.parse(call("nowPlaying") || "{}"); } catch (e) {}
+    var card = document.getElementById("np");
+    if (!np.title && !np.app) { card.classList.add("hidden"); return; }
+    card.classList.remove("hidden");
+    setText("np-app", np.state === "playing" ? "Now playing · " + (np.app || "") : (np.app || ""));
+    setText("np-title", np.title || np.app || "");
+    setText("np-sub", np.subtitle || "");
+    var pct = np.duration > 0 ? Math.min(100, 100 * np.position / np.duration) : 0;
+    document.getElementById("np-fill").style.width = pct + "%";
+    var left = np.duration > 0 ? fmtDur(np.duration - np.position) + " left" : "";
+    setText("np-state", (np.state === "paused" ? "Paused" : np.state === "playing" ? "Playing" : "") + (left ? " · " + left : "") + " · ⏯ on the remote");
+  }
+  refreshNowPlaying();
+  setInterval(refreshNowPlaying, 5000);
+
+  /* ---------- phone remote QR ---------- */
+
+  var remoteUrl = "";
+  function refreshRemote() {
+    var st = {};
+    try { st = JSON.parse(call("status") || "{}"); } catch (e) {}
+    var card = document.getElementById("remote");
+    if (!st.remote || typeof qrcode === "undefined") { card.classList.add("hidden"); return; }
+    if (st.remote === remoteUrl) return;
+    remoteUrl = st.remote;
+    var qr = qrcode(0, "M");
+    qr.addData(remoteUrl);
+    qr.make();
+    document.getElementById("qr").innerHTML = qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
+    card.classList.remove("hidden");
+  }
+  refreshRemote();
+  setInterval(refreshRemote, 60 * 1000);
+
+  /* ---------- rows ---------- */
+
+  var rows = []; // [{el: tilesEl, section: sectionEl, tiles: [tileEl...]}]
   var focus = { r: 0, c: 0 };
+  var liveItems = [];
 
   function sortApps(list) {
     var seen = {};
@@ -294,50 +348,71 @@
     return t;
   }
 
-  function textTile(name, sub, onActivate) {
+  function textTile(name, sub, onActivate, live) {
     var t = document.createElement("div");
-    t.className = "tile small";
-    t.innerHTML = '<div class="icon-wrap"><div class="name"></div><div class="sub"></div></div>';
+    t.className = "tile" + (live ? "" : " small");
+    t.innerHTML = (live ? '<div class="live-dot">LIVE</div>' : "") +
+      '<div class="icon-wrap"><div class="name"></div><div class="sub"></div></div>';
     t.querySelector(".name").textContent = name;
     t.querySelector(".sub").textContent = sub || "";
     t.onActivate = onActivate;
     return t;
   }
 
+  function liveTile(item) {
+    return textTile(item.title, item.sub, function () {
+      var r = item.kind === "youtube" ? call("openUrl", item.url, "") : call("view", item.url);
+      if (r !== "ok") toast("Couldn't open " + item.title + (r ? " (" + r + ")" : ""));
+    }, true);
+  }
+
+  function loadLive() {
+    return getJSON("live.json?t=" + Date.now()).then(function (j) {
+      liveItems = j.items || [];
+      buildRows();
+    }).catch(function () {});
+  }
+
+  function fill(id, tiles) {
+    var el = document.getElementById(id);
+    el.innerHTML = "";
+    tiles.forEach(function (t) { el.appendChild(t); });
+    document.getElementById("row-" + id).classList.toggle("hidden", !tiles.length);
+  }
+
   function buildRows() {
-    var appsEl = document.getElementById("apps");
-    var inputsEl = document.getElementById("inputs");
-    appsEl.innerHTML = "";
-    inputsEl.innerHTML = "";
+    var keep = rows[focus.r] ? rows[focus.r].el.id : null;
+
+    var recent = [];
+    try { recent = JSON.parse(call("recent") || "[]"); } catch (e) {}
+    fill("recent", recent.slice(0, 8).map(appTile));
+
+    fill("live", liveItems.map(liveTile));
 
     var apps = [];
     try { apps = sortApps(JSON.parse(call("apps") || "[]")); } catch (e) {}
-    apps.forEach(function (a) { appsEl.appendChild(appTile(a)); });
-    if (!apps.length) {
-      var p = document.createElement("div");
-      p.className = "tile placeholder";
-      p.textContent = "No apps found";
-      appsEl.appendChild(p);
-    }
+    fill("apps", apps.map(appTile));
 
     var inputs = [];
     try { inputs = JSON.parse(call("inputs") || "[]"); } catch (e) {}
-    inputs.forEach(function (i) {
-      inputsEl.appendChild(textTile(i.label, "Input", function () {
+    var inputTiles = inputs.map(function (i) {
+      return textTile(i.label, "Input", function () {
         var r = call("openInput", i.id);
         if (r !== "ok") toast("Couldn't switch to " + i.label + (r ? " (" + r + ")" : ""));
-      }));
+      });
     });
-    inputsEl.appendChild(textTile("Settings", "Fire TV", function () {
-      var r = call("settings");
-      if (r !== "ok") toast("Couldn't open settings");
+    inputTiles.push(textTile("Settings", "Fire TV", function () {
+      if (call("settings") !== "ok") toast("Couldn't open settings");
     }));
+    fill("inputs", inputTiles);
 
-    rows = [appsEl, inputsEl].map(function (el) {
-      return { el: el, tiles: Array.prototype.slice.call(el.querySelectorAll(".tile")) };
+    rows = ["recent", "live", "apps", "inputs"].map(function (id) {
+      var el = document.getElementById(id);
+      return { el: el, section: document.getElementById("row-" + id), tiles: Array.prototype.slice.call(el.querySelectorAll(".tile")) };
     }).filter(function (r) { return r.tiles.length; });
 
-    focus.r = Math.min(focus.r, rows.length - 1);
+    var again = keep ? rows.map(function (r) { return r.el.id; }).indexOf(keep) : -1;
+    focus.r = again >= 0 ? again : Math.min(focus.r, rows.length - 1);
     focus.c = Math.min(focus.c, rows[focus.r].tiles.length - 1);
     paintFocus();
   }
@@ -347,7 +422,7 @@
       row.tiles.forEach(function (t, ci) {
         t.classList.toggle("focus", ri === focus.r && ci === focus.c);
       });
-      // Slide the row so the focused tile stays on screen.
+      // Slide the row sideways so the focused tile stays on screen.
       var idx = ri === focus.r ? focus.c : (row.lastC || 0);
       var tile = row.tiles[idx];
       var visible = 1920 - 96 * 2;
@@ -359,6 +434,15 @@
       row.el.style.transform = "translateX(" + (-offset) + "px)";
       if (ri === focus.r) row.lastC = focus.c;
     });
+    // Slide the list up so the focused row stays in the window above the ticker.
+    var cur = rows[focus.r];
+    if (cur) {
+      var windowH = 1080 - 440 - 76;
+      var top = cur.section.offsetTop, bottom = top + cur.section.offsetHeight + 30;
+      var shift = Math.max(0, bottom - windowH);
+      if (focus.r === 0) shift = 0;
+      document.getElementById("rows").style.transform = "translateY(" + (-shift) + "px)";
+    }
   }
 
   function move(dr, dc) {
@@ -436,4 +520,6 @@
   }
 
   buildRows();
+  loadLive();
+  setInterval(function () { if (!document.body.classList.contains("idle")) buildRows(); }, 60 * 1000);
 })();

@@ -1,0 +1,8 @@
+{
+  "_note": "Tiles for the Live around town row. kind: 'page' opens the page full screen on the TV (Back closes it); 'youtube' opens in the YouTube app.",
+  "items": [
+    { "title": "Santa Cruz Harbor", "sub": "Visit Santa Cruz County cam", "kind": "page", "url": "https://www.santacruz.org/webcams/santa-cruz-harbor-cam" },
+    { "title": "Palm State Beach", "sub": "Visit Santa Cruz County cam", "kind": "page", "url": "https://www.santacruz.org/webcams/palm-state-beach-cam/" },
+    { "title": "Monterey Bay Aquarium", "sub": "Live on YouTube", "kind": "youtube", "url": "https://www.youtube.com/@MontereyBayAquarium/live" }
+  ]
+}

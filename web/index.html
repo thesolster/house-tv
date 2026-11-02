@@ -29,16 +29,43 @@
     <p id="summary">&nbsp;</p>
   </section>
 
-  <main id="rows">
-    <section class="row" data-row="apps">
-      <h2>Watch</h2>
-      <div class="track"><div class="tiles" id="apps"></div></div>
-    </section>
-    <section class="row" data-row="inputs">
-      <h2>Inputs &amp; settings</h2>
-      <div class="track"><div class="tiles" id="inputs"></div></div>
-    </section>
-  </main>
+  <aside id="side">
+    <div id="np" class="card hidden">
+      <div class="np-app" id="np-app"></div>
+      <div class="np-title" id="np-title"></div>
+      <div class="np-sub" id="np-sub"></div>
+      <div class="np-bar"><div id="np-fill"></div></div>
+      <div class="np-state" id="np-state"></div>
+    </div>
+    <div id="remote" class="card hidden">
+      <div id="qr"></div>
+      <div class="remote-text">
+        <div class="remote-title">Phone remote</div>
+        <div class="remote-sub">Scan on the house wifi</div>
+      </div>
+    </div>
+  </aside>
+
+  <div id="rowsClip">
+    <main id="rows">
+      <section class="row hidden" id="row-recent">
+        <h2>Recent</h2>
+        <div class="track"><div class="tiles" id="recent"></div></div>
+      </section>
+      <section class="row" id="row-live">
+        <h2>Live around town</h2>
+        <div class="track"><div class="tiles" id="live"></div></div>
+      </section>
+      <section class="row" id="row-apps">
+        <h2>All apps</h2>
+        <div class="track"><div class="tiles" id="apps"></div></div>
+      </section>
+      <section class="row" id="row-inputs">
+        <h2>Inputs &amp; settings</h2>
+        <div class="track"><div class="tiles" id="inputs"></div></div>
+      </section>
+    </main>
+  </div>
 
   <div id="ambient">
     <div id="ambient-clock">--:--</div>
@@ -53,6 +80,7 @@
 
   <div id="toast"></div>
 </div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
