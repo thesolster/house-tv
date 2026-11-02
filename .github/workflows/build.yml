@@ -1,0 +1,52 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "web/**"
+      - "*.gradle"
+      - "gradle.properties"
+      - ".github/workflows/build.yml"
+      - "!web/apk/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Build
+        run: gradle :app:assembleRelease --no-daemon --stacktrace
+
+      - name: Keep the APK as a build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: house-tv-apk
+          path: app/build/outputs/apk/release/app-release.apk
+
+      - name: Publish the APK to the site (house-tv.vercel.app/get)
+        run: |
+          mkdir -p web/apk
+          cp app/build/outputs/apk/release/app-release.apk web/apk/house-tv.apk
+          echo "{\"version\": \"0.1.${GITHUB_RUN_NUMBER}\", \"commit\": \"${GITHUB_SHA}\"}" > web/apk/latest.json
+          git config user.name "house-tv build"
+          git config user.email "actions@users.noreply.github.com"
+          git add web/apk
+          git commit -m "APK 0.1.${GITHUB_RUN_NUMBER} [skip ci]"
+          git pull --rebase origin main
+          git push origin HEAD:main

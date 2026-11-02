@@ -1,0 +1,60 @@
+plugins {
+    id 'com.android.application'
+}
+
+def runNumber = (System.getenv('GITHUB_RUN_NUMBER') ?: '1') as Integer
+
+android {
+    namespace 'com.thesolster.housetv'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.thesolster.housetv'
+        minSdk 22
+        targetSdk 28 // Fire OS 7 is Android 9
+        versionCode runNumber
+        versionName "0.1.${runNumber}"
+    }
+
+    // One fixed key so new builds install over old ones.
+    signingConfigs {
+        house {
+            storeFile file('../signing/house-tv.jks')
+            storePassword 'housetv'
+            keyAlias 'house'
+            keyPassword 'housetv'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.house
+        }
+        debug {
+            signingConfig signingConfigs.house
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    // The same web page ships inside the app as an offline fallback.
+    sourceSets {
+        main {
+            assets.srcDirs = ['../web']
+        }
+    }
+
+    // Keep the site-only files (the downloadable APK, Vercel config) out of the app.
+    androidResources {
+        ignoreAssetsPattern '!<dir>apk:!vercel.json:!.*:!*~'
+    }
+
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}
