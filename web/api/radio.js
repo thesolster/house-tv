@@ -63,18 +63,29 @@ async function testStream(url, ms = 5000) {
   return out;
 }
 
-// Spinitron's public now-playing widget: show, DJ, and the song on air.
-function strip(s) { return (s || "").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&#039;|&apos;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, " ").trim(); }
+// Spinitron station page: the show on air, its time slot, the DJ, and the latest song.
+function strip(s) { return (s || "").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&#0?39;|&apos;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, " ").trim(); }
 async function spinitron(id, raw) {
   try {
-    const r = await fetch(`https://widgets.spinitron.com/widget/now-playing-v2?station=${encodeURIComponent(id)}&num=1&sharing=0&player=0&cover=0&merch=0&meta=1`,
-      { headers: { "User-Agent": UA }, signal: timeout(6000) });
+    const r = await fetch(`https://spinitron.com/${encodeURIComponent(id)}/`, { headers: { "User-Agent": UA }, signal: timeout(6000) });
     if (!r.ok) return { error: "status " + r.status };
     const html = await r.text();
-    if (raw) return { raw: html.slice(0, 4000) };
-    const pick = cls => { const m = html.match(new RegExp('class="[^"]*' + cls + '[^"]*"[^>]*>([\\s\\S]*?)</(?:span|div|p|a|h\\d)>')); return m ? strip(m[1]) : ""; };
-    const res = { show: pick("show-title") || pick("playlist-title"), dj: pick("dj-name") || pick("show-dj"), artist: pick("artist"), song: pick("song"), release: pick("release") };
-    return Object.values(res).some(Boolean) ? res : { empty: true };
+    const i = html.indexOf('class="playlist-block onair"');
+    if (i < 0) return { empty: true };
+    const block = html.slice(i, i + 20000);
+    const grab = re => { const m = block.match(re); return m ? strip(m[1]) : ""; };
+    const out = {
+      show: grab(/class="show-title"[^>]*>([\s\S]*?)<\/h3>/),
+      slot: grab(/class="timeslot"[^>]*>([\s\S]*?)<\/p>/),
+      dj: grab(/class="dj-name"[^>]*>([\s\S]*?)<\/p>/).replace(/^With\s+/i, ""),
+      genre: grab(/class="show-categoty"[^>]*>([\s\S]*?)<\/p>/)
+    };
+    const m = block.match(/data-spin="([^"]+)"/);
+    if (m) { try { const sp = JSON.parse(m[1].replace(/&quot;/g, '"').replace(/&amp;/g, "&").replace(/&#0?39;/g, "'")); out.artist = sp.a || ""; out.song = sp.s || ""; } catch (e) {} }
+    const u = out.slot.match(/(\d{1,2}:\d\d\s*[AP]M)\s*–\s*(\d{1,2}:\d\d\s*[AP]M)/);
+    if (u) { out.from = u[1]; out.until = u[2]; }
+    if (raw) out.raw = block.slice(0, 3000);
+    return out;
   } catch (e) { return { error: e.message }; }
 }
 
@@ -99,7 +110,7 @@ module.exports = async (req, res) => {
   if (mode === "probe") {
     const st = stations.find(s => s.code === q.code) || { code: q.code, find: q.code, streams: [] };
     const rb = st.find ? await rbLookup(st.find) : [];
-    const spin = await spinitron((st.spinitron || st.code).toLowerCase(), true);
+    const spin = await spinitron(st.spinitron || st.code, true);
     res.setHeader("Cache-Control", "no-store");
     return res.status(200).json({ station: st, radioBrowser: rb, spinitron: spin });
   }
@@ -124,9 +135,9 @@ module.exports = async (req, res) => {
       const sp = await spinitron(st.spinitron);
       if (!sp.error && !sp.empty) Object.assign(info, sp);
     }
-    if (!info.show && !info.song && st.streams && st.streams[0]) {
+    if (!info.song && st.streams && st.streams[0]) {
       const t = await testStream(st.streams[0], 2500);
-      if (t.title) info.title = t.title;
+      if (t.title && t.title.length > 2) info.title = t.title;
     }
     now[st.code] = info;
   }));

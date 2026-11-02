@@ -6,7 +6,7 @@
 (function () {
   "use strict";
 
-  var PAGE_VERSION = "page 26";
+  var PAGE_VERSION = "page 27";
   var SANTA_CRUZ = { lat: 36.9741, lon: -122.0308, tz: "America/Los_Angeles" };
   var TIDE_STATION = "9413745"; // NOAA, Santa Cruz
   var IDLE_MS = 5 * 60 * 1000;
@@ -236,7 +236,24 @@
   var town = { events: [], alerts: [], photos: [], radio: [], ticker: [], channels: [], stations: [] };
   var radioCfg = [];
   function loadRadio() {
-    return getJSON("radio.json?t=" + Date.now()).then(function (j) { radioCfg = j.stations || []; buildGuide(); }).catch(function () {});
+    return getJSON("radio.json?t=" + Date.now()).then(function (j) { radioCfg = j.stations || []; buildGuide(); loadOnAir(); }).catch(function () {});
+  }
+  // What's on every station right now: show, DJ and song from Spinitron, or the stream's own title.
+  var onAir = {};
+  function loadOnAir() {
+    return getJSON("https://house-tv.vercel.app/api/radio?t=" + Math.floor(Date.now() / 60000)).then(function (j) {
+      onAir = j.now || {};
+      if (!document.body.classList.contains("idle")) buildGuide();
+      if (tune.on) renderTuneBar();
+    }).catch(function () {});
+  }
+  // One answer per station, Regular's schedule first, then Spinitron, then the stream title.
+  function program(cfg) {
+    var live = town.stations.filter(function (r) { return r.station === cfg.code; })[0] || {};
+    var on = live.on || {}, next = live.next || {}, a = onAir[cfg.code] || {};
+    var song = a.song ? (a.artist ? a.artist + " – " : "") + a.song : (a.title && a.title !== on.title ? a.title : "");
+    return { show: on.title || a.show || "", host: on.host || a.dj || "", until: on.until || a.until || "", song: song,
+      next: next.title || "", nextAt: next.at || "" };
   }
 
   function firstJSON(urls) {
@@ -508,10 +525,8 @@
     var rs = json("radioStatus", {});
     var radioOn = rs.state === "playing" || rs.state === "connecting";
     radioCfg.forEach(function (cfg, i) {
-      var live = town.stations.filter(function (r) { return r.station === cfg.code; })[0] || {};
-      var on = live.on || {}, next = live.next || {};
+      var pg = program(cfg);
       var playing = radioOn && rs.station === cfg.name;
-      var cardTitle = on.title || cfg.about;
       if (cfg.soon) {
         // Paid streams (KPIG): a placeholder until subscribing from Settings exists.
         out.push({ num: String(88 + i), name: cfg.name, color: "#7d7268", cells: [{
@@ -521,19 +536,21 @@
           act: function () { toast(cfg.name + " is coming soon"); } }] });
         return;
       }
+      var line = [pg.host ? "with " + pg.host : "", pg.until ? "until " + pg.until : ""].filter(Boolean).join(" · ");
+      var sub = [pg.show ? cfg.name + (line ? " · " + line : "") : cfg.about, pg.song ? "♪ " + pg.song : ""].filter(Boolean).join(" · ");
+      // The town is always the picture. Picking a station puts its sound under the town.
       var cells = [{
-        t: playing ? "■ Stop" : "▶ Listen" + (on.title ? ": " + on.title : ""),
-        s: playing ? (rs.state === "playing" ? "Playing now" : "Tuning in…") : on.title ? [on.host ? "with " + on.host : "", on.until ? "until " + on.until : ""].filter(Boolean).join(" · ") : cfg.area + " · " + cfg.about,
-        now: true, kicker: cfg.area + " · " + (playing ? (rs.state === "playing" ? "Playing now" : "Tuning in…") : "Radio"),
-        title: on.title || cfg.name, sub: on.title ? cfg.name + (on.host ? " · with " + on.host : "") : cfg.about,
-        preview: { type: "card", kicker: cfg.name + " · " + cfg.area, title: cardTitle }, act: function () { toggleRadio(cfg); }
-      }, {
-        t: "Town + radio", s: "The town on screen, " + cfg.name + " playing", kicker: "Regular TV + " + cfg.name, title: "Town + radio",
-        sub: "Watch the town with " + cfg.name + " on. ▲ ▼ town · ◀ ▶ station",
+        t: "▶ " + (pg.show || "Listen"), s: pg.song ? "♪ " + pg.song : line || cfg.area + " · " + cfg.about,
+        now: true, kicker: cfg.area + " · " + (playing ? (rs.state === "playing" ? "Playing now" : "Tuning in…") : "On the radio"),
+        title: pg.show || cfg.name, sub: sub,
         preview: livePreview(STATION_PAGE, (town.photos[0] || {}).url), act: function () { enterTune(cfg, 0); }
+      }, {
+        t: playing ? "■ Stop" : "Sound only", s: playing ? "Turn " + cfg.name + " off" : "Just the radio, stay on the guide",
+        kicker: cfg.name, title: playing ? "Stop" : "Sound only", sub: playing ? "Turn " + cfg.name + " off" : "Plays " + cfg.name + " and leaves the guide up",
+        preview: { type: "card", kicker: cfg.name + " · " + cfg.area, title: pg.show || cfg.about }, act: function () { toggleRadio(cfg); }
       }];
-      if (next.title) cells.push({ t: "Next: " + next.title, s: next.at ? "at " + next.at : "", kicker: cfg.name + " · Up next", title: next.title, sub: next.at ? "at " + next.at : "",
-        preview: { type: "card", kicker: cfg.name + " · Up next", title: next.title }, act: function () { toggleRadio(cfg); } });
+      if (pg.next) cells.push({ t: "Next: " + pg.next, s: pg.nextAt ? "at " + pg.nextAt : "", kicker: cfg.name + " · Up next", title: pg.next, sub: pg.nextAt ? "at " + pg.nextAt : "",
+        preview: { type: "card", kicker: cfg.name + " · Up next", title: pg.next }, act: function () { enterTune(cfg, 0); } });
       if (cfg.playlist) cells.push({ t: "Playlist", s: "What's been playing", kicker: cfg.name, title: "Playlist", sub: "What's been playing on " + cfg.name,
         preview: { type: "card", kicker: cfg.name, title: "Playlist" }, act: function () { call("view", cfg.playlist); } });
       out.push({ num: String(88 + i), name: cfg.name, color: playing ? "#ff5a36" : "#7dff8a", cells: cells });
@@ -792,13 +809,12 @@
     if (!tune.on) return;
     var st = forced || radioStation();
     var rs = json("radioStatus", {});
-    var live = st ? (town.stations.filter(function (r) { return r.station === st.code; })[0] || {}) : {};
-    var on = live.on || {}, next = live.next || {};
+    var pg = st ? program(st) : {};
     var state = rs.state === "playing" && st && rs.station === st.name ? "On the radio" : rs.state === "failed" ? "Couldn't tune in" : "Tuning in";
     setText("tb-kicker", state === "On the radio" ? "" : state);
     setText("tb-station", st ? st.name : "Radio");
-    setText("tb-show", on.title || (st ? st.area : ""));
-    setText("tb-sub", on.until ? "until " + on.until : "");
+    setText("tb-show", pg.song ? (pg.show ? pg.show + " · " : "") + "♪ " + pg.song : pg.show || (st ? st.area : ""));
+    setText("tb-sub", pg.until && !pg.song ? "until " + pg.until : "");
   }
 
   /* ---------- the preview window ---------- */
@@ -1029,9 +1045,14 @@
     if (tune.on) { exitTune(); return; }
     if (drawer.open) { closeDrawer(); return; }
     if (viewMode) { setView(false); return; }
-    focus.r = 0; focus.c = 0; paint();
+    goTown();
   };
-  window.houseHome = function () { wake(); if (tune.on) exitTune(); closeDrawer(); setView(false); focus.r = 0; focus.c = 0; paint(); };
+  window.houseHome = function () { wake(); if (tune.on) exitTune(); closeDrawer(); setView(false); goTown(); };
+  // The town is the default channel: with nothing picked, the little TV plays Santa Cruz.
+  function goTown() {
+    var i = rows.map(function (r) { return r.num; }).indexOf("03");
+    focus.r = i >= 0 ? i : 0; focus.c = 0; paint();
+  }
   window.houseResume = function () { wake(); artCache = {}; buildGuide(); tick(); refreshNowPlaying(); };
 
   /* ---------- helpers ---------- */
@@ -1051,6 +1072,7 @@
   }
 
   /* ---------- start ---------- */
+  var townLanded = false;
 
   applySkin(chosenSkin() || "guide");
   applyPrefs();
@@ -1058,9 +1080,9 @@
   buildGuide();
   loadSettings();
   refreshConditions();
-  loadTown();
   loadLive();
   loadRadio();
+  loadTown().then(function () { if (!townLanded && focus.r === 0 && focus.c === 0) goTown(); townLanded = true; });
   refreshNowPlaying();
   refreshRemote();
   setInterval(refreshConditions, 15 * 60 * 1000);
@@ -1068,5 +1090,6 @@
   setInterval(loadTown, 10 * 60 * 1000);
   setInterval(refreshNowPlaying, 5000);
   setInterval(refreshRemote, 60 * 1000);
+  setInterval(loadOnAir, 60 * 1000);
   setInterval(function () { if (!document.body.classList.contains("idle")) buildGuide(); }, 2 * 60 * 1000);
 })();
