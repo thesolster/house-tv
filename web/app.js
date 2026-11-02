@@ -112,7 +112,7 @@
   setInterval(checkForUpdate, 2 * 60 * 1000);
 
   // Small stamp so we can tell which copy is on screen.
-  var PAGE_VERSION = "page 7";
+  var PAGE_VERSION = "page 8";
   var appVersion = window.HouseTV ? call("version") : "browser";
   setTimeout(function () {
     setText("build", PAGE_VERSION + " · app " + appVersion + " · " +
@@ -222,6 +222,74 @@
   refreshConditions();
   setInterval(refreshConditions, 15 * 60 * 1000);
 
+  /* ---------- Regular: town station and channel feed ---------- */
+
+  var REGULAR_TV = ["https://regular-tv-channels.vercel.app", "https://tv.regular.sc"];
+  var REGULAR_FEED = ["https://regular.sc/api/channel-feed", "https://regular-agent.vercel.app/api/channel-feed"];
+  var STATION_PAGE = REGULAR_TV[0] + "/tv/town";
+  var town = { events: [], alerts: [], photos: [], radio: [] };
+
+  function firstJSON(urls) {
+    var i = 0;
+    function next() {
+      if (i >= urls.length) return Promise.reject(new Error("no source"));
+      return getJSON(urls[i++]).catch(next);
+    }
+    return next();
+  }
+
+  function loadTown() {
+    var station = firstJSON(REGULAR_TV.map(function (b) { return b + "/api/town/station"; })).then(function (st) {
+      var events = [], alerts = [], photos = [], seen = {};
+      (st.spots || []).forEach(function (spot) {
+        (spot.parts || []).forEach(function (p) {
+          if (p.kind === "event") {
+            events.push({ title: p.title, place: p.place, time: p.time, now: !!p.now,
+              photo: p.photo && p.photo.url, credit: p.photo && p.photo.credit, url: p.ref && p.ref.u });
+          } else if (p.kind === "message" && p.text) {
+            alerts.push(p.text + (p.sub ? " · " + p.sub : ""));
+          } else if (p.kind === "bumper" && p.photo && p.photo.url && !seen[p.photo.url]) {
+            seen[p.photo.url] = 1;
+            photos.push({ url: p.photo.url, credit: p.photo.credit || "" });
+          }
+        });
+      });
+      town.events = events;
+      town.alerts = alerts;
+      if (photos.length) town.photos = photos;
+    }).catch(function () {});
+    var feed = firstJSON(REGULAR_FEED).then(function (f) {
+      town.radio = (f.radio || []).filter(function (r) { return r.on && r.on.title; }).map(function (r) {
+        return "On " + r.station + ": " + r.on.title + (r.on.host ? " with " + r.on.host : "") + (r.on.until ? " until " + r.on.until : "");
+      });
+    }).catch(function () {});
+    return Promise.all([station, feed]).then(function () {
+      buildTicker();
+      buildRows();
+      if (!photoTimer) nextPhoto();
+    });
+  }
+
+  // Rotate the town's photos behind the top of the screen.
+  var photoTimer = null, photoIdx = -1, photoLayer = 0;
+  function nextPhoto() {
+    if (!town.photos.length) return;
+    photoIdx = (photoIdx + 1) % town.photos.length;
+    var ph = town.photos[photoIdx];
+    var img = new Image();
+    img.onload = function () {
+      var layers = document.querySelectorAll("#photo .ph");
+      photoLayer = 1 - photoLayer;
+      layers[photoLayer].style.backgroundImage = "url('" + ph.url.replace(/'/g, "%27") + "')";
+      layers[photoLayer].classList.add("on");
+      layers[1 - photoLayer].classList.remove("on");
+      setText("photo-credit", ph.credit);
+    };
+    img.src = ph.url;
+    clearTimeout(photoTimer);
+    photoTimer = setTimeout(nextPhoto, 45 * 1000);
+  }
+
   /* ---------- ticker ---------- */
 
   var extraLines = [];
@@ -236,6 +304,8 @@
   }
   loadTickerFile();
   setInterval(loadTickerFile, 10 * 60 * 1000);
+  loadTown();
+  setInterval(loadTown, 10 * 60 * 1000);
 
   var strip = document.getElementById("strip");
   var tickerX = 0, stripWidth = 0;
@@ -252,6 +322,11 @@
     conditions.tides.forEach(function (t) {
       items.push("<i>" + (t.high ? "High tide" : "Low tide") + "</i> " + fmtShortTime(t.at) + ", " + t.ft.toFixed(1) + " ft");
     });
+    town.alerts.forEach(function (a) { items.push("<i>Heads up</i> " + esc(a)); });
+    town.events.slice(0, 7).forEach(function (e) {
+      items.push("<i>" + (e.now ? "On now" : esc(e.time || "Tonight")) + "</i> " + esc(e.title) + (e.place ? " at " + esc(e.place) : ""));
+    });
+    town.radio.forEach(function (r) { items.push("<i>Radio</i> " + esc(r)); });
     extraLines.forEach(function (l) { items.push(esc(l)); });
     if (!items.length) items.push("Santa Cruz");
 
@@ -406,6 +481,24 @@
     return t;
   }
 
+  function eventTile(e) {
+    var t = document.createElement("div");
+    t.className = "tile event";
+    t.innerHTML = '<div class="ev-img"></div><div class="ev-text"><div class="ev-time"></div><div class="ev-title"></div><div class="ev-place"></div></div>';
+    if (e.photo) t.querySelector(".ev-img").style.backgroundImage = "url('" + e.photo.replace(/'/g, "%27") + "')";
+    var time = t.querySelector(".ev-time");
+    time.textContent = e.now ? "On now" : (e.time || "Tonight");
+    if (e.now) time.classList.add("now");
+    t.querySelector(".ev-title").textContent = e.title || "";
+    t.querySelector(".ev-place").textContent = e.place || "";
+    t.onActivate = function () {
+      if (!e.url) return;
+      var r = call("view", e.url);
+      if (r !== "ok") toast("Couldn't open " + (e.place || "it"));
+    };
+    return t;
+  }
+
   function liveTile(item) {
     return textTile(item.title, item.sub, function () {
       var r = item.kind === "youtube" ? call("openUrl", item.url, "") : call("view", item.url);
@@ -434,11 +527,14 @@
     try { watched = (JSON.parse(call("history") || "{}").items || []); } catch (e) {}
     fill("watched", watched.slice(0, 10).map(watchedTile));
 
+    fill("tonight", town.events.slice(0, 10).map(eventTile));
+
     var recent = [];
     try { recent = JSON.parse(call("recent") || "[]"); } catch (e) {}
     fill("recent", recent.slice(0, 8).map(appTile));
 
-    fill("live", liveItems.map(liveTile));
+    fill("live", [{ title: "Santa Cruz right now", sub: "Regular TV town station", kind: "page", url: STATION_PAGE }]
+      .concat(liveItems).map(liveTile));
 
     var apps = [];
     try { apps = sortApps(JSON.parse(call("apps") || "[]")); } catch (e) {}
@@ -457,7 +553,7 @@
     }));
     fill("inputs", inputTiles);
 
-    rows = ["watched", "recent", "live", "apps", "inputs"].map(function (id) {
+    rows = ["watched", "tonight", "recent", "live", "apps", "inputs"].map(function (id) {
       var el = document.getElementById(id);
       return { el: el, section: document.getElementById("row-" + id), tiles: Array.prototype.slice.call(el.querySelectorAll(".tile")) };
     }).filter(function (r) { return r.tiles.length; });
@@ -518,12 +614,22 @@
 
   /* ---------- idle / ambient ---------- */
 
-  var idleTimer;
+  // Idle: big clock (and the note) after 5 minutes; the Regular town station after 15.
+  var idleTimer, stationTimer;
+  var STATION_AFTER_MS = 15 * 60 * 1000;
   function wake() {
     var wasIdle = document.body.classList.contains("idle");
     document.body.classList.remove("idle");
     clearTimeout(idleTimer);
+    clearTimeout(stationTimer);
     idleTimer = setTimeout(function () { document.body.classList.add("idle"); }, IDLE_MS);
+    if (window.HouseTV) {
+      stationTimer = setTimeout(function () {
+        var np = {};
+        try { np = JSON.parse(call("nowPlaying") || "{}"); } catch (e) {}
+        if (np.state !== "playing") call("view", STATION_PAGE);
+      }, STATION_AFTER_MS);
+    }
     return wasIdle;
   }
   wake();
