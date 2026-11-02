@@ -112,7 +112,7 @@
   setInterval(checkForUpdate, 2 * 60 * 1000);
 
   // Small stamp so we can tell which copy is on screen.
-  var PAGE_VERSION = "page 9";
+  var PAGE_VERSION = "page 10";
   var appVersion = window.HouseTV ? call("version") : "browser";
   setTimeout(function () {
     setText("build", PAGE_VERSION + " · app " + appVersion + " · " +
@@ -505,11 +505,12 @@
     t.querySelector(".w-show").textContent = show;
     t.querySelector(".w-ep").textContent = ep;
     t.querySelector(".w-bar div").style.width = pct + "%";
-    t.querySelector(".w-when").textContent = ago(w.at);
+    t.querySelector(".w-when").textContent = ago(w.at) + " · Opens " + (w.app || "the app");
     t.onActivate = function () {
-      var r = bridge.resume ? call("resume", w.pkg, w.mediaId || "", w.mediaUri || "") : call("launch", w.pkg);
-      if (r === "resumed" || r === "opened" || r === "ok") return;
-      if (r === "app") toast((w.app || "The app") + " is open. " + show + " is under Continue Watching.");
+      // No links into the app (HBO Max hangs on them). Resume if it's still loaded, otherwise open the app.
+      var r = bridge.resume ? call("resume", w.pkg, "", "") : call("launch", w.pkg);
+      if (r === "resumed") { toast("Picking up " + show + " in " + (w.app || "the app")); return; }
+      if (r === "app" || r === "ok") toast("Opening " + (w.app || "the app") + " · " + show + " is under Continue Watching");
       else toast("Couldn't open " + (w.app || "the app"));
     };
     return t;
