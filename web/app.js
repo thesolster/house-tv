@@ -6,7 +6,7 @@
 (function () {
   "use strict";
 
-  var PAGE_VERSION = "page 29";
+  var PAGE_VERSION = "page 30";
   var SANTA_CRUZ = { lat: 36.9741, lon: -122.0308, tz: "America/Los_Angeles" };
   var TIDE_STATION = "9413745"; // NOAA, Santa Cruz
   var IDLE_MS = 5 * 60 * 1000;
@@ -53,10 +53,41 @@
       ] });
     },
     openUrl: function (u) { toast("Would open " + u); return "ok"; },
-    view: function (u) { toast("Would show " + u); return "ok"; },
+    view: function (u) { webViewer([{ name: "", url: u }], 0); return "ok"; },
+    watch: function (listJson, i) { webViewer(JSON.parse(listJson), i); return "ok"; },
     status: function () { return JSON.stringify({ usage: true, nowPlaying: true, remote: "http://192.168.4.38:8765/?t=preview" }); }
   };
   var inShell = !!window.HouseTV;
+
+  // In a plain browser there's no TV app to play channels, so play them here:
+  // a full-screen frame, ◀ ▶ flips channels, Back or Esc returns to the guide.
+  var wv = null;
+  function webViewer(list, i) {
+    if (!wv) {
+      wv = document.createElement("div");
+      wv.id = "web-viewer";
+      wv.style.cssText = "position:fixed;inset:0;z-index:9999;background:#000;display:none";
+      wv.innerHTML = '<iframe style="width:100%;height:100%;border:0" allow="autoplay; fullscreen"></iframe>' +
+        '<div style="position:absolute;left:24px;bottom:20px;font:600 18px Inter,sans-serif;color:#fff;background:rgba(0,0,0,.55);padding:8px 14px;border-radius:8px"></div>';
+      document.body.appendChild(wv);
+      window.addEventListener("keydown", function (e) {
+        if (wv.style.display === "none") return;
+        var k = e.key;
+        if (k === "Escape" || k === "Backspace" || k === "GoBack" || k === "BrowserBack") { wv.style.display = "none"; wv.firstChild.src = "about:blank"; }
+        else if (k === "ArrowRight" || k === "ArrowLeft") { var n = wv.list.length; wv.i = (wv.i + (k === "ArrowRight" ? 1 : n - 1)) % n; wvShow(); }
+        else return;
+        e.preventDefault(); e.stopImmediatePropagation();
+      }, true);
+    }
+    wv.list = list; wv.i = i || 0;
+    wv.style.display = "block";
+    wvShow();
+  }
+  function wvShow() {
+    var c = wv.list[wv.i];
+    wv.firstChild.src = c.url;
+    wv.lastChild.textContent = (c.name ? c.name + " · " : "") + (wv.list.length > 1 ? "◀ ▶ channels · " : "") + "Esc for the guide";
+  }
 
   function call(name) {
     try {
@@ -457,7 +488,7 @@
     if (r !== "ok") toast("Couldn't open " + list[i].name);
   }
   function livePreview(url, photo, credit) {
-    return pref("preview", settings.preview) === "live" && inShell ? { type: "live", url: url, photo: photo, credit: credit } : { type: "photo", url: photo, credit: credit };
+    return pref("preview", settings.preview) === "live" ? { type: "live", url: url, photo: photo, credit: credit } : { type: "photo", url: photo, credit: credit };
   }
 
   // History is per episode; channels want one tile per show, newest first.
