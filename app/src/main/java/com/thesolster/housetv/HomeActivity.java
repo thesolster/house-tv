@@ -159,6 +159,18 @@ public class HomeActivity extends Activity {
         viewer.evaluateJavascript("window.rtvSkip && rtvSkip(" + dir + ")", null);
     }
 
+    // Ask the page what OK means on the card that's up (Regular TV's rtvOk). Only a YouTube link is ever opened.
+    private void hear() {
+        viewer.evaluateJavascript("window.rtvOk ? String(rtvOk() || '') : ''", new android.webkit.ValueCallback<String>() {
+            @Override public void onReceiveValue(String v) {
+                String url = v == null ? "" : v.replace("\"", "").trim();
+                if (!url.startsWith("https://www.youtube.com/watch?v=")) return;
+                String r = Tv.openUrl(HomeActivity.this, url, "");
+                if (!"ok".equals(r)) android.widget.Toast.makeText(HomeActivity.this, "Couldn't open YouTube (" + r + ")", android.widget.Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
     private void flip(int dir) {
         if (channels == null || channels.length() == 0) return;
         channelIdx = (channelIdx + dir + channels.length()) % channels.length();
@@ -180,6 +192,8 @@ public class HomeActivity extends Activity {
             if (k == KeyEvent.KEYCODE_DPAD_UP || k == KeyEvent.KEYCODE_CHANNEL_DOWN) { if (down) flip(-1); return true; }
             if (k == KeyEvent.KEYCODE_DPAD_RIGHT || k == KeyEvent.KEYCODE_MEDIA_FAST_FORWARD) { if (down) skip(1); return true; }
             if (k == KeyEvent.KEYCODE_DPAD_LEFT || k == KeyEvent.KEYCODE_MEDIA_REWIND) { if (down) skip(-1); return true; }
+            // OK on an act's card in Live Music: hear them (the card's own video, opened in the YouTube app).
+            if (k == KeyEvent.KEYCODE_DPAD_CENTER || k == KeyEvent.KEYCODE_ENTER || k == KeyEvent.KEYCODE_NUMPAD_ENTER) { if (down) hear(); return true; }
         }
         // The menu key (☰) saves whatever you're on to the phone remote's Saved list.
         if (event.getAction() == KeyEvent.ACTION_DOWN && event.getKeyCode() == KeyEvent.KEYCODE_MENU) {
