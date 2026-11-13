@@ -150,7 +150,7 @@ public class HomeActivity extends Activity {
             closeViewer();
             return;
         }
-        // We're the home screen: Back never leaves. Let the page decide what it means.
+        // The page decides what Back means; at its top level it calls leave() and we step out to the TV's home.
         js("window.houseBack && houseBack()");
     }
 
@@ -278,5 +278,10 @@ public class HomeActivity extends Activity {
             }
         }
         @JavascriptInterface public String clearHistory() { return Tv.clearHistory(ctx); }
+        // Back at the top of the page: step out to the TV's own home screen. The app stays running behind it.
+        @JavascriptInterface public String leave() {
+            runOnUiThread(new Runnable() { public void run() { moveTaskToBack(true); } });
+            return "ok";
+        }
     }
 }

@@ -6,7 +6,7 @@
 (function () {
   "use strict";
 
-  var PAGE_VERSION = "page 32";
+  var PAGE_VERSION = "page 33";
   var SANTA_CRUZ = { lat: 36.9741, lon: -122.0308, tz: "America/Los_Angeles" };
   var TIDE_STATION = "9413745"; // NOAA, Santa Cruz
   var IDLE_MS = 5 * 60 * 1000;
@@ -416,7 +416,7 @@
     if (lastFrame) {
       tickerX -= Math.min(ts - lastFrame, 100) * 0.09;
       if (stripWidth && -tickerX >= stripWidth) tickerX += stripWidth;
-      strip.style.transform = "translateX(" + tickerX + "px)";
+      strip.style.transform = "translate3d(" + tickerX.toFixed(2) + "px,0,0)";
     }
     lastFrame = ts;
     requestAnimationFrame(runTicker);
@@ -1138,6 +1138,10 @@
     if (tune.on) { exitTune(); return; }
     if (drawer.open) { closeDrawer(); return; }
     if (viewMode) { setView(false); return; }
+    // We're an app on the onn, not the TV's home screen (Sol, Nov 12 2026): Back from anywhere else goes to the
+    // start of the Santa Cruz row, and Back from there leaves to the TV's own home.
+    var i = rows.map(function (r) { return r.num; }).indexOf("03");
+    if (focus.r === (i >= 0 ? i : 0) && focus.c === 0 && bridge.leave) { call("leave"); return; }
     goTown();
   };
   window.houseHome = function () { wake(); if (tune.on) exitTune(); closeDrawer(); setView(false); goTown(); };
