@@ -6,7 +6,7 @@
 (function () {
   "use strict";
 
-  var PAGE_VERSION = "page 30";
+  var PAGE_VERSION = "page 31";
   var SANTA_CRUZ = { lat: 36.9741, lon: -122.0308, tz: "America/Los_Angeles" };
   var TIDE_STATION = "9413745"; // NOAA, Santa Cruz
   var IDLE_MS = 5 * 60 * 1000;
@@ -14,6 +14,8 @@
   var REGULAR_TV = ["https://regular-tv-channels.vercel.app", "https://tv.regular.sc"];
   var REGULAR_FEED = ["https://regular.sc/api/channel-feed", "https://regular-agent.vercel.app/api/channel-feed"];
   var STATION_PAGE = REGULAR_TV[0] + "/tv/town";
+  // Grocery Deals lives on the newer Regular TV build and is opt-in there; this house opts in.
+  var DEALS_TV = ["https://one.regular.sc", "https://regular-tv-one.vercel.app"];
 
   var PREFERRED = [
     "com.netflix.ninja", "com.amazon.firetv.youtube", "com.google.android.youtube.tv",
@@ -343,7 +345,16 @@
       town.alerts = alerts;
       if (photos.length) town.photos = photos;
       town.ticker = st.town_ticker === false ? [] : (st.town || []);
-      if (chans.length) town.channels = chans;
+      if (chans.length) town.base = chans;
+    }).catch(function () {});
+    var deals = firstJSON(DEALS_TV.map(function (b) { return b + "/api/town/deals"; })).then(function (d) {
+      var spots = (d.spots || []).filter(function (sp) { return sp.enabled !== false; });
+      if (!spots.length) { town.deals = null; return; } // every ad has run out: no tile
+      var items = [];
+      spots.forEach(function (sp) { items = items.concat(spotLines(sp)); });
+      var c = d.channel || {};
+      town.deals = { id: "deals", name: c.name || "Grocery Deals", about: "This week's grocery deals: local shops first, then the big brands",
+        color: c.color || "#b6e35b", url: DEALS_TV[0] + "/tv/town/deals", items: items };
     }).catch(function () {});
     var feed = firstJSON(REGULAR_FEED).then(function (f) {
       town.stations = f.radio || [];
@@ -351,7 +362,10 @@
         return "On " + r.station + ": " + r.on.title + (r.on.host ? " with " + r.on.host : "") + (r.on.until ? " until " + r.on.until : "");
       });
     }).catch(function () {});
-    return Promise.all([station, feed]).then(function () { buildTicker(); buildGuide(); });
+    return Promise.all([station, feed, deals]).then(function () {
+      town.channels = (town.base || []).concat(town.deals ? [town.deals] : []);
+      buildTicker(); buildGuide();
+    });
   }
 
   var liveItems = [];
