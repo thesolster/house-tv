@@ -147,7 +147,9 @@ public class HomeActivity extends Activity {
     @Override
     public void onBackPressed() {
         if (viewer.getVisibility() == View.VISIBLE) {
-            closeViewer();
+            // A video playing inside a channel closes first; Back again leaves the channel.
+            if (channels != null) key("back", new Runnable() { public void run() { closeViewer(); } });
+            else closeViewer();
             return;
         }
         // The page decides what Back means; at its top level it calls leave() and we step out to the TV's home.
@@ -159,14 +161,12 @@ public class HomeActivity extends Activity {
         viewer.evaluateJavascript("window.rtvSkip && rtvSkip(" + dir + ")", null);
     }
 
-    // Ask the page what OK means on the card that's up (Regular TV's rtvOk). Only a YouTube link is ever opened.
-    private void hear() {
-        viewer.evaluateJavascript("window.rtvOk ? String(rtvOk() || '') : ''", new android.webkit.ValueCallback<String>() {
+    // Offer a remote key to the channel's own page first (Regular TV's rtvKey: OK plays an act's video inside the page,
+    // and while it plays the page takes OK, left, right, up, down and Back). If the page doesn't take it, do ours.
+    private void key(String name, final Runnable otherwise) {
+        viewer.evaluateJavascript("window.rtvKey ? !!rtvKey('" + name + "') : false", new android.webkit.ValueCallback<String>() {
             @Override public void onReceiveValue(String v) {
-                String url = v == null ? "" : v.replace("\"", "").trim();
-                if (!url.startsWith("https://www.youtube.com/watch?v=")) return;
-                String r = Tv.openUrl(HomeActivity.this, url, "");
-                if (!"ok".equals(r)) android.widget.Toast.makeText(HomeActivity.this, "Couldn't open YouTube (" + r + ")", android.widget.Toast.LENGTH_SHORT).show();
+                if (!"true".equals(v) && otherwise != null) otherwise.run();
             }
         });
     }
@@ -188,12 +188,13 @@ public class HomeActivity extends Activity {
         if (viewer.getVisibility() == View.VISIBLE && channels != null) {
             int k = event.getKeyCode();
             boolean down = event.getAction() == KeyEvent.ACTION_DOWN;
-            if (k == KeyEvent.KEYCODE_DPAD_DOWN || k == KeyEvent.KEYCODE_CHANNEL_UP) { if (down) flip(1); return true; }
-            if (k == KeyEvent.KEYCODE_DPAD_UP || k == KeyEvent.KEYCODE_CHANNEL_DOWN) { if (down) flip(-1); return true; }
-            if (k == KeyEvent.KEYCODE_DPAD_RIGHT || k == KeyEvent.KEYCODE_MEDIA_FAST_FORWARD) { if (down) skip(1); return true; }
-            if (k == KeyEvent.KEYCODE_DPAD_LEFT || k == KeyEvent.KEYCODE_MEDIA_REWIND) { if (down) skip(-1); return true; }
-            // OK on an act's card in Live Music: hear them (the card's own video, opened in the YouTube app).
-            if (k == KeyEvent.KEYCODE_DPAD_CENTER || k == KeyEvent.KEYCODE_ENTER || k == KeyEvent.KEYCODE_NUMPAD_ENTER) { if (down) hear(); return true; }
+            if (k == KeyEvent.KEYCODE_DPAD_DOWN || k == KeyEvent.KEYCODE_CHANNEL_UP) { if (down) key("down", new Runnable() { public void run() { flip(1); } }); return true; }
+            if (k == KeyEvent.KEYCODE_DPAD_UP || k == KeyEvent.KEYCODE_CHANNEL_DOWN) { if (down) key("up", new Runnable() { public void run() { flip(-1); } }); return true; }
+            if (k == KeyEvent.KEYCODE_DPAD_RIGHT || k == KeyEvent.KEYCODE_MEDIA_FAST_FORWARD) { if (down) key("right", new Runnable() { public void run() { skip(1); } }); return true; }
+            if (k == KeyEvent.KEYCODE_DPAD_LEFT || k == KeyEvent.KEYCODE_MEDIA_REWIND) { if (down) key("left", new Runnable() { public void run() { skip(-1); } }); return true; }
+            // OK on an act's card in Live Music: the page plays the act's video itself, sound on. OK again pauses.
+            if (k == KeyEvent.KEYCODE_DPAD_CENTER || k == KeyEvent.KEYCODE_ENTER || k == KeyEvent.KEYCODE_NUMPAD_ENTER) { if (down) key("ok", null); return true; }
+            if (k == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE || k == KeyEvent.KEYCODE_MEDIA_PLAY || k == KeyEvent.KEYCODE_MEDIA_PAUSE) { if (down) key("play", null); return true; }
         }
         // The menu key (☰) saves whatever you're on to the phone remote's Saved list.
         if (event.getAction() == KeyEvent.ACTION_DOWN && event.getKeyCode() == KeyEvent.KEYCODE_MENU) {
