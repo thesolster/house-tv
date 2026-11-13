@@ -237,7 +237,7 @@
 
   // Tonight's events from Regular, each one savable.
   function loadTonight() {
-    fetch("https://regular-tv-channels.vercel.app/api/town/station").then(function (r) { return r.json(); }).then(function (st) {
+    fetch("https://one.regular.sc/api/town/station").then(function (r) { return r.json(); }).then(function (st) {
       var evs = [], seen = {};
       (st.spots || []).forEach(function (spot) {
         (spot.parts || []).forEach(function (p) {
