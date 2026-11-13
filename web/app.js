@@ -6,7 +6,7 @@
 (function () {
   "use strict";
 
-  var PAGE_VERSION = "page 34";
+  var PAGE_VERSION = "page 35";
   var SANTA_CRUZ = { lat: 36.9741, lon: -122.0308, tz: "America/Los_Angeles" };
   var TIDE_STATION = "9413745"; // NOAA, Santa Cruz
   var IDLE_MS = 5 * 60 * 1000;
@@ -552,7 +552,7 @@
     // Regular's channels, then the cams. ◀ ▶ moves between them; OK plays one.
     var photo0 = town.photos[0] || {};
     var sc = [{ t: "Santa Cruz right now", s: "All of the town's channels, mixed", now: true, kicker: "Regular TV · all channels", title: "Santa Cruz right now",
-      sub: "The whole town's channels, mixed by time of day", preview: livePreview(STATION_PAGE, photo0.url, photo0.credit), act: function () { watchChannel(0); } }];
+      sub: "The whole town's channels, mixed by time of day. ▶ skips a card · ◀ goes back · ▲ ▼ change channel", preview: livePreview(STATION_PAGE, photo0.url, photo0.credit), act: function () { watchChannel(0); } }];
     var lastStation = radioStation();
     sc.push({ t: "Town + radio", s: "The town on screen, " + (lastStation ? lastStation.name : "local radio") + " playing", now: true,
       kicker: "Regular TV + radio", title: "Town + radio", sub: "Watch the town with " + (lastStation ? lastStation.name : "local radio") + " on. ▲ ▼ town · ◀ ▶ station",

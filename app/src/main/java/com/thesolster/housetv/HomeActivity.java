@@ -31,7 +31,7 @@ public class HomeActivity extends Activity {
 
     private WebView web;
     private WebView viewer;
-    // Channels you can flip through with left/right while one plays full screen.
+    // Channels you can flip through with up/down while one plays full screen.
     private org.json.JSONArray channels = null;
     private int channelIdx = 0;
     private String homeUrl;
@@ -154,6 +154,11 @@ public class HomeActivity extends Activity {
         js("window.houseBack && houseBack()");
     }
 
+    // Ask the channel's own page to move one card on or back (Regular TV's rtvSkip; pages without it ignore this).
+    private void skip(int dir) {
+        viewer.evaluateJavascript("window.rtvSkip && rtvSkip(" + dir + ")", null);
+    }
+
     private void flip(int dir) {
         if (channels == null || channels.length() == 0) return;
         channelIdx = (channelIdx + dir + channels.length()) % channels.length();
@@ -165,11 +170,16 @@ public class HomeActivity extends Activity {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        // While a town channel plays: left/right (or channel up/down) flips channels, like cable.
-        if (viewer.getVisibility() == View.VISIBLE && channels != null && event.getAction() == KeyEvent.ACTION_DOWN) {
+        // While a town channel plays (Sol, Nov 12 2026: "forward things if I'm not interested"): up/down (or channel
+        // up/down) changes the channel, like cable; right skips to the next card, left goes back one. Fast-forward
+        // and rewind skip too, on remotes that have them.
+        if (viewer.getVisibility() == View.VISIBLE && channels != null) {
             int k = event.getKeyCode();
-            if (k == KeyEvent.KEYCODE_DPAD_RIGHT || k == KeyEvent.KEYCODE_CHANNEL_UP) { flip(1); return true; }
-            if (k == KeyEvent.KEYCODE_DPAD_LEFT || k == KeyEvent.KEYCODE_CHANNEL_DOWN) { flip(-1); return true; }
+            boolean down = event.getAction() == KeyEvent.ACTION_DOWN;
+            if (k == KeyEvent.KEYCODE_DPAD_DOWN || k == KeyEvent.KEYCODE_CHANNEL_UP) { if (down) flip(1); return true; }
+            if (k == KeyEvent.KEYCODE_DPAD_UP || k == KeyEvent.KEYCODE_CHANNEL_DOWN) { if (down) flip(-1); return true; }
+            if (k == KeyEvent.KEYCODE_DPAD_RIGHT || k == KeyEvent.KEYCODE_MEDIA_FAST_FORWARD) { if (down) skip(1); return true; }
+            if (k == KeyEvent.KEYCODE_DPAD_LEFT || k == KeyEvent.KEYCODE_MEDIA_REWIND) { if (down) skip(-1); return true; }
         }
         // The menu key (☰) saves whatever you're on to the phone remote's Saved list.
         if (event.getAction() == KeyEvent.ACTION_DOWN && event.getKeyCode() == KeyEvent.KEYCODE_MENU) {
