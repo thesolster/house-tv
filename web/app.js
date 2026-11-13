@@ -6,7 +6,7 @@
 (function () {
   "use strict";
 
-  var PAGE_VERSION = "page 33";
+  var PAGE_VERSION = "page 34";
   var SANTA_CRUZ = { lat: 36.9741, lon: -122.0308, tz: "America/Los_Angeles" };
   var TIDE_STATION = "9413745"; // NOAA, Santa Cruz
   var IDLE_MS = 5 * 60 * 1000;
@@ -16,7 +16,8 @@
   var REGULAR_TV = ["https://one.regular.sc", "https://regular-tv-one.vercel.app"];
   var HOUSE = "?home=1";
   var REGULAR_FEED = ["https://regular.sc/api/channel-feed", "https://regular-agent.vercel.app/api/channel-feed"];
-  var STATION_PAGE = REGULAR_TV[0] + "/tv/town" + HOUSE;
+  // add=deals: Grocery Deals is opt-in on Regular TV; this house wants it in the Santa Cruz mix too.
+  var STATION_PAGE = REGULAR_TV[0] + "/tv/town" + HOUSE + "&add=deals";
   // Grocery Deals is opt-in on Regular TV (not in the station); this house opts in.
   var DEALS_TV = REGULAR_TV;
 
@@ -366,7 +367,8 @@
       });
     }).catch(function () {});
     return Promise.all([station, feed, deals]).then(function () {
-      town.channels = (town.base || []).concat(town.deals ? [town.deals] : []);
+      // Grocery Deals first among the channels, so it is easy to find.
+      town.channels = (town.deals ? [town.deals] : []).concat(town.base || []);
       buildTicker(); buildGuide();
     });
   }
